@@ -1,0 +1,98 @@
+# Architecture
+
+## Runtime shape
+
+The teleprompter is a static browser application with small PHP endpoints and
+filesystem persistence. It deliberately has no JavaScript framework, build
+pipeline, package manager, or database.
+
+`teleprompter.html` owns nearly all client behaviour: display, autoscroll,
+touch navigation, master/follower state, cue rendering/editing, annotations,
+fullscreen, and wake lock.
+
+The PHP endpoints are:
+
+| Endpoint | Responsibility |
+| --- | --- |
+| `list_scripts.php` | Return readable entries from the script catalog. |
+| `get_script.php` | Return one allow-listed HTML script fragment. |
+| `teleprompter_sync.php` | Claim master control, write state, and serve polling reads. |
+| `teleprompter_events.php` | Stream state, heartbeats, and annotation revisions over SSE. |
+| `cue_api.php` | Read and mutate department cue documents. |
+| `annotation_api.php` | Read and mutate annotation documents and publish revision signals. |
+| `auth_cookie.php` | Issue and verify signed role cookies. |
+
+All current browser clients use synchronization room `main`.
+
+## Client roles
+
+The default client is a follower. ASM can authenticate and claim master
+control. A URL query such as `?dept=LX` creates a department follower; its
+department password unlocks cue and annotation editing but never master control.
+
+Master identity is a random value in `sessionStorage`, so it survives reloads
+in the same tab. Authentication is retained separately in secure HTTP-only
+cookies for 24 hours.
+
+## Persistent and operational data
+
+| Path | Contents |
+| --- | --- |
+| `show-scripts/` | Deployed HTML fragments. Production files may be untracked because of copyright. |
+| `show-cues/` | Ignored deployment data: per-script/per-department cue JSON. |
+| `show-annotations/` | Ignored deployment data: per-script/per-department annotation JSON. |
+| `scripts/teleprompter_state/<room>.json` | Ignored runtime data: latest master state. |
+| `scripts/teleprompter_state/<room>.master.json` | Ignored runtime data: master owner and lease timestamps. |
+| `scripts/teleprompter_state/annotation_revisions.json` | Ignored runtime data: annotation revision notification map. |
+
+Annotation files belong only in the root `show-annotations/` directory. The
+application does not read annotation data from beneath `scripts/`.
+
+## Credential migration proposal
+
+The repository currently contains legacy plaintext master and department
+passwords. Because the repository is public, assume those values are disclosed.
+A safe migration should be coordinated with production deployment:
+
+1. Rotate every current master and department password.
+2. Change PHP configuration to read `TP_MASTER_PASSWORD` and department values
+   such as `TP_CUE_PASSWORD_LX` from the hosting environment. Fail closed when a
+   required value is absent; do not retain committed fallback passwords.
+3. If the host cannot provide environment secrets, load an untracked PHP file
+   located outside the public document root. Commit only a `.example` template.
+4. Deploy the configuration change and new secrets together. Password rotation
+   naturally invalidates existing signed authentication cookies.
+5. Remove the old values from the current Git tree. If they have ever been
+   pushed publicly, rotation is mandatory; deleting them in a later commit does
+   not erase history. Rewrite history only as a separately approved,
+   coordinated operation.
+
+Do not store raw passwords in browser storage or send them in query strings.
+The current password header is used only during login/current-session requests,
+after which the HTTP-only cookie can authenticate.
+
+## Runtime-data Git policy
+
+State, cue, and annotation JSON are mutable production data. They are ignored
+under `scripts/teleprompter_state/`, `show-cues/`, and `show-annotations/` and
+have been removed from the current Git index without deleting working copies.
+Each directory has a tracked `.gitkeep` so a fresh deployment creates the
+required path.
+
+The deployment pipeline is expected not to delete ignored files. It must also
+keep these directories writable and persistent across releases. Production
+operations should back them up and prevent unintended directory listing or
+direct disclosure.
+
+Previously committed JSON remains in Git history. Rewriting public history is
+not required for normal operation and must be a separately approved,
+coordinated change. Put sanitized examples in a dedicated fixture directory if
+future automated tests need them; do not re-add live files with `git add -f`.
+
+## Copyrighted scripts
+
+`.gitignore` intentionally excludes `show-scripts/*` and allow-lists only the
+public-domain Pirates test script. The catalog may name production files that
+are installed separately on the server. `list_scripts.php` omits catalog entries
+whose files are unavailable, allowing a public clone to work with only its test
+fixture.

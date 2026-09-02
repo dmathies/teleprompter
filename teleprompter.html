@@ -935,6 +935,9 @@
     const FOLLOW_AVERAGE_WINDOW_MS = 3000;
     const FOLLOW_MAX_WAIT_MS = 3000;
     const FOLLOW_WAIT_EPSILON_PX = 2;
+    // Match the server-side master ownership lease. A state older than this
+    // cannot prove that a master is still active and must never move a follower.
+    const FOLLOW_STATE_STALE_MS = 10000;
     const REFERENCE_LINE_FRACTION = 0.35;
     const MASTER_HEARTBEAT_OK_MS = 3500;
     const MASTER_HEARTBEAT_WARN_MS = 6500;
@@ -1024,6 +1027,9 @@
     let sseFallbackTimer = null;
     let sseHasOpened = false;
     let latestRemoteState = null;
+    let latestRemoteStateAgeAtReceiveMs = null;
+    let latestRemoteStateReceivedPerf = null;
+    let remoteStateExpiryTimer = null;
     let lastRemoteMotionSignature = null;
     let lastRemoteMotionAt = performance.now();
     let followingLive = true;
@@ -3202,6 +3208,64 @@
       return referenceY - viewport.clientHeight * REFERENCE_LINE_FRACTION;
     }
 
+    function stateAgeAtDeliveryMs(state) {
+      if (!state) return null;
+      if (typeof state.serverTime !== "number" ||
+          typeof state.deliveryServerTime !== "number" ||
+          !Number.isFinite(state.serverTime) ||
+          !Number.isFinite(state.deliveryServerTime) ||
+          state.serverTime <= 0 ||
+          state.deliveryServerTime < state.serverTime) {
+        return null;
+      }
+      const stateServerTimeMs = state.serverTime * 1000;
+      const deliveryServerTimeMs = state.deliveryServerTime * 1000;
+      return Math.max(0, deliveryServerTimeMs - stateServerTimeMs);
+    }
+
+    function latestRemoteStateAgeMs() {
+      if (!latestRemoteState ||
+          !Number.isFinite(latestRemoteStateAgeAtReceiveMs) ||
+          !Number.isFinite(latestRemoteStateReceivedPerf)) {
+        return null;
+      }
+      return latestRemoteStateAgeAtReceiveMs +
+        Math.max(0, performance.now() - latestRemoteStateReceivedPerf);
+    }
+
+    function rememberFreshRemoteState(state, ageAtReceiveMs, receivedAt) {
+      if (remoteStateExpiryTimer !== null) {
+        clearTimeout(remoteStateExpiryTimer);
+      }
+      latestRemoteState = state;
+      latestRemoteStateAgeAtReceiveMs = ageAtReceiveMs;
+      latestRemoteStateReceivedPerf = receivedAt;
+      remoteStateExpiryTimer = setTimeout(() => {
+        remoteStateExpiryTimer = null;
+        if (syncMode !== "follow" || latestRemoteState !== state) return;
+        followTargetScrollTop = null;
+        followSamples = [];
+        followClockServerMs = null;
+        followClockPerfMs = null;
+        forgetRemoteState();
+        if (followingLive) {
+          setSyncStatus("FOLLOW: waiting for fresh master state", "warn");
+        }
+      }, Math.max(0, FOLLOW_STATE_STALE_MS - ageAtReceiveMs));
+    }
+
+    function forgetRemoteState() {
+      if (remoteStateExpiryTimer !== null) {
+        clearTimeout(remoteStateExpiryTimer);
+        remoteStateExpiryTimer = null;
+      }
+      latestRemoteState = null;
+      latestRemoteStateAgeAtReceiveMs = null;
+      latestRemoteStateReceivedPerf = null;
+      pendingTopJump = null;
+      updateMasterPositionMarker();
+    }
+
     function syncMotionSignature(state) {
       if (!state) return "";
 
@@ -3375,24 +3439,22 @@
 
       const incomingState = state || null;
 
+      let receivedAt = null;
+      let stateAgeAtReceive = null;
+
       if (incomingState) {
-        const receivedAt = performance.now();
+        receivedAt = performance.now();
         lastMasterHeartbeatPerf = receivedAt; // retained for compatibility/debugging
         lastServerHeartbeatPerf = receivedAt; // a state event also proves the SSE/server path
 
-        const stateServerTimeMs = Number(incomingState.serverTime) * 1000;
-        const deliveryServerTimeMs = Number(incomingState.deliveryServerTime) * 1000;
-
-        let stateAgeAtReceive = 0;
-        if (Number.isFinite(stateServerTimeMs) && Number.isFinite(deliveryServerTimeMs)) {
-          stateAgeAtReceive = Math.max(0, deliveryServerTimeMs - stateServerTimeMs);
-        }
+        stateAgeAtReceive = stateAgeAtDeliveryMs(incomingState);
 
         lastMasterHeartbeatBaseMs = stateAgeAtReceive;
         lastMasterHeartbeatSamplePerf = receivedAt;
 
         const interactionAge = Number(incomingState.interactionAgeMs);
-        if (Number.isFinite(interactionAge) && interactionAge >= 0) {
+        if (Number.isFinite(stateAgeAtReceive) &&
+            Number.isFinite(interactionAge) && interactionAge >= 0) {
           lastMasterInteractionBaseMs = interactionAge + stateAgeAtReceive;
           lastMasterInteractionSamplePerf = receivedAt;
         }
@@ -3402,6 +3464,25 @@
       if (!incomingState) {
         if (followingLive) {
           setSyncStatus("FOLLOW: waiting · " + transport, "warn");
+        }
+        return;
+      }
+
+      // serverTime is stamped when the master writes; deliveryServerTime is
+      // stamped by the SSE/GET response. Both use the same server clock, so
+      // freshness does not depend on the follower device's wall clock.
+      if (!Number.isFinite(stateAgeAtReceive) ||
+          stateAgeAtReceive >= FOLLOW_STATE_STALE_MS) {
+        const acceptedAge = latestRemoteStateAgeMs();
+        if (acceptedAge === null || acceptedAge >= FOLLOW_STATE_STALE_MS) {
+          forgetRemoteState();
+          followTargetScrollTop = null;
+          followSamples = [];
+          followClockServerMs = null;
+          followClockPerfMs = null;
+        }
+        if (followingLive) {
+          setSyncStatus("FOLLOW: stale master state ignored · " + transport, "warn");
         }
         return;
       }
@@ -3444,7 +3525,7 @@
         }
         pendingTopJump = null;
 
-        latestRemoteState = incomingState;
+        rememberFreshRemoteState(incomingState, stateAgeAtReceive, receivedAt);
         const motionSignature = syncMotionSignature(latestRemoteState);
         if (motionSignature !== lastRemoteMotionSignature) {
           lastRemoteMotionSignature = motionSignature;
@@ -3537,7 +3618,7 @@
         startFollowAnimation();
         setSyncStatus("FOLLOW: live · " + transport, "ok");
       } else if (!followingLive) {
-        latestRemoteState = incomingState;
+        rememberFreshRemoteState(incomingState, stateAgeAtReceive, receivedAt);
         pendingTopJump = null;
         updateMasterPositionMarker();
         setSyncStatus("FOLLOW: PAUSED — tap ◎ to rejoin", "warn");
@@ -3722,6 +3803,18 @@
         followClockServerMs === null ||
         followClockPerfMs === null
       ) {
+        syncAnimationRunning = false;
+        return;
+      }
+
+      const currentStateAge = latestRemoteStateAgeMs();
+      if (currentStateAge === null || currentStateAge >= FOLLOW_STATE_STALE_MS) {
+        followTargetScrollTop = null;
+        followSamples = [];
+        followClockServerMs = null;
+        followClockPerfMs = null;
+        forgetRemoteState();
+        setSyncStatus("FOLLOW: waiting for fresh master state", "warn");
         syncAnimationRunning = false;
         return;
       }
@@ -3936,7 +4029,13 @@
       lastRenderedFollowPosition = null;
       followWaitingSince = null;
       followDirection = 0;
+      if (remoteStateExpiryTimer !== null) {
+        clearTimeout(remoteStateExpiryTimer);
+        remoteStateExpiryTimer = null;
+      }
       latestRemoteState = null;
+      latestRemoteStateAgeAtReceiveMs = null;
+      latestRemoteStateReceivedPerf = null;
       updateMasterPositionMarker();
       lastRemoteMotionSignature = null;
       lastRemoteMotionAt = performance.now();
@@ -4044,7 +4143,10 @@
       document.body.classList.remove("follow-paused");
       updateMasterPositionMarker();
 
-      if (latestRemoteState) {
+      const latestAge = latestRemoteStateAgeMs();
+      if (latestRemoteState &&
+          latestAge !== null && latestAge < FOLLOW_STATE_STALE_MS &&
+          (!latestRemoteState.script || latestRemoteState.script === currentScriptId)) {
         const target = targetScrollForState(latestRemoteState);
         if (target !== null) {
           followTargetScrollTop = Math.max(0, Math.min(maxScrollTop(), target));
@@ -4052,8 +4154,11 @@
           scrollPos = viewport.scrollTop;
           lastRenderedFollowPosition = viewport.scrollTop;
         }
+        setSyncStatus("FOLLOW: live", "ok");
+      } else {
+        forgetRemoteState();
+        setSyncStatus("FOLLOW: waiting for fresh master state", "warn");
       }
-      setSyncStatus("FOLLOW: live", "ok");
       scheduleToolbarHide();
     }
 
