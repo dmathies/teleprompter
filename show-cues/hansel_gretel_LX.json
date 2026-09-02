@@ -1,0 +1,88 @@
+{
+    "script": "hansel_gretel",
+    "department": "LX",
+    "revision": 9,
+    "cues": [
+        {
+            "id": "lx-11f55e67c61f58cc",
+            "number": "21",
+            "description": "Project",
+            "color": "#ff0000",
+            "anchor": {
+                "type": "word",
+                "prompt": "p000528",
+                "wordIndex": 3,
+                "text": "PEGGY"
+            },
+            "endAnchor": null
+        },
+        {
+            "id": "lx-540f49933459def9",
+            "number": "P",
+            "description": "Proj",
+            "color": "#ff0000",
+            "anchor": {
+                "type": "word",
+                "prompt": "p000640",
+                "wordIndex": 0,
+                "text": "SCENE"
+            },
+            "endAnchor": null
+        },
+        {
+            "id": "lx-8c7bf4d5a8558218",
+            "number": "P",
+            "description": "Proj",
+            "color": "#ff0000",
+            "anchor": {
+                "type": "word",
+                "prompt": "p000746",
+                "wordIndex": 0,
+                "text": "SCENE"
+            },
+            "endAnchor": null
+        },
+        {
+            "id": "lx-dc5d1203af55ccfb",
+            "number": "P",
+            "description": "Project",
+            "color": "#ff0000",
+            "anchor": {
+                "type": "word",
+                "prompt": "p000940",
+                "wordIndex": 0,
+                "text": "SCENE"
+            },
+            "endAnchor": null
+        },
+        {
+            "id": "lx-e56ea2d0df4c9a10",
+            "number": "P",
+            "description": "Project",
+            "color": "#ff0000",
+            "anchor": {
+                "type": "word",
+                "prompt": "p001095",
+                "wordIndex": 0,
+                "text": "SCENE"
+            },
+            "endAnchor": null
+        },
+        {
+            "id": "lx-7fff5bf20e8dc5a0",
+            "number": "22",
+            "description": "Light1",
+            "color": "#2f80ed",
+            "anchor": {
+                "type": "word",
+                "prompt": "p000145",
+                "wordIndex": 6,
+                "text": "People!"
+            },
+            "endAnchor": {
+                "prompt": "p000145",
+                "fraction": 0.9954255319148905
+            }
+        }
+    ]
+}

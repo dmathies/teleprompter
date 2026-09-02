@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pen / Eraser Test App</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: #101010;
+    color: #f0f0f0;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #181818;
+    border-bottom: 1px solid #3a3a3a;
+    padding: 10px 12px;
+  }
+  h1 { margin: 0; font-size: 20px; }
+  .hint { margin-top: 4px; color: #b8b8b8; font-size: 14px; }
+  main {
+    padding: 12px;
+    display: grid;
+    gap: 12px;
+  }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  button, input[type="range"], select {
+    min-height: 42px;
+  }
+  button, select {
+    background: #222;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 15px;
+  }
+  label {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  #padWrap {
+    border: 2px solid #4a4a4a;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #070707;
+    position: relative;
+  }
+  #pad {
+    width: 100%;
+    height: 48vh;
+    min-height: 300px;
+    display: block;
+    touch-action: none;
+    background-image:
+      linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  #overlayText {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: grid;
+    place-items: center;
+    color: rgba(255,255,255,.16);
+    font-size: 24px;
+    text-align: center;
+    padding: 20px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 8px;
+  }
+  .card {
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 8px 10px;
+    min-width: 0;
+  }
+  .wide { grid-column: 1 / -1; }
+  .label { color:#aaa; font-size:12px; }
+  .value {
+    font: 17px/1.25 ui-monospace, SFMono-Regular, Consolas, monospace;
+    word-break: break-word;
+  }
+  #log {
+    min-height: 140px;
+    max-height: 260px;
+    overflow: auto;
+    background: #080808;
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 8px;
+    white-space: pre-wrap;
+    font: 12px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  .small {
+    color: #bdbdbd;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lenovo Pen / Eraser Test App</h1>
+  <div class="hint">Try pen tip, finger, flipped eraser, and side buttons. This app also tests a “real eraser” stroke that deletes any drawing touched by a 10 px erase path.</div>
+</header>
+
+<main>
+  <div class="toolbar">
+    <button id="clearCanvasBtn">Clear canvas</button>
+    <button id="clearLogBtn">Clear log</button>
+    <button id="toggleModeBtn">Tool: Draw</button>
+    <label>Eraser width
+      <input id="eraserWidth" type="range" min="4" max="40" step="1" value="10">
+      <span id="eraserWidthValue">10 px</span>
+    </label>
+    <label><input id="pressureEnabled" type="checkbox" checked> Pressure</label>
+    <label><input id="fingerDrawEnabled" type="checkbox"> Finger draws</label>
+  </div>
+
+  <div id="padWrap">
+    <canvas id="pad"></canvas>
+    <div id="overlayText">Draw here<br><span class="small">If flipped eraser appears as “touch”, test with Tool: Erase and see whether the eraser end feels usable.</span></div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="label">event</div><div id="eventType" class="value">—</div></div>
+    <div class="card"><div class="label">pointerType</div><div id="pointerType" class="value">—</div></div>
+    <div class="card"><div class="label">button</div><div id="button" class="value">—</div></div>
+    <div class="card"><div class="label">buttons</div><div id="buttons" class="value">—</div></div>
+    <div class="card"><div class="label">pressure</div><div id="pressure" class="value">—</div></div>
+    <div class="card"><div class="label">tiltX / tiltY</div><div id="tilt" class="value">—</div></div>
+    <div class="card"><div class="label">twist</div><div id="twist" class="value">—</div></div>
+    <div class="card"><div class="label">width / height</div><div id="size" class="value">—</div></div>
+    <div class="card wide"><div class="label">notes</div><div id="notes" class="value">—</div></div>
+  </div>
+
+  <div class="card wide">
+    <div class="label">Event log</div>
+    <div id="log"></div>
+  </div>
+</main>
+
+<script>
+(() => {
+  const canvas = document.getElementById('pad');
+  const ctx = canvas.getContext('2d');
+  const logEl = document.getElementById('log');
+  const toggleModeBtn = document.getElementById('toggleModeBtn');
+  const clearCanvasBtn = document.getElementById('clearCanvasBtn');
+  const clearLogBtn = document.getElementById('clearLogBtn');
+  const eraserWidthInput = document.getElementById('eraserWidth');
+  const eraserWidthValue = document.getElementById('eraserWidthValue');
+  const pressureEnabled = document.getElementById('pressureEnabled');
+  const fingerDrawEnabled = document.getElementById('fingerDrawEnabled');
+
+  const fields = {};
+  for (const id of ['eventType','pointerType','button','buttons','pressure','tilt','twist','size','notes']) {
+    fields[id] = document.getElementById(id);
+  }
+
+  let activeTool = 'draw'; // draw | erase
+  let strokes = [];
+  let activePointer = null;
+  let draftStroke = null;
+  let dpr = 1;
+  const logLines = [];
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    redraw();
+  }
+
+  function px(v) { return v * dpr; }
+
+  function clientToCanvas(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  function distancePointToSegment(px0, py0, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay;
+    if (dx === 0 && dy === 0) return Math.hypot(px0 - ax, py0 - ay);
+    let t = ((px0 - ax) * dx + (py0 - ay) * dy) / (dx * dx + dy * dy);
+    t = Math.max(0, Math.min(1, t));
+    const x = ax + t * dx, y = ay + t * dy;
+    return Math.hypot(px0 - x, py0 - y);
+  }
+
+  function segmentsNear(a1, a2, b1, b2, threshold) {
+    return (
+      distancePointToSegment(a1.x, a1.y, b1.x, b1.y, b2.x, b2.y) <= threshold ||
+      distancePointToSegment(a2.x, a2.y, b1.x, b1.y, b2.x, b2.y) <= threshold ||
+      distancePointToSegment(b1.x, b1.y, a1.x, a1.y, a2.x, a2.y) <= threshold ||
+      distancePointToSegment(b2.x, b2.y, a1.x, a1.y, a2.x, a2.y) <= threshold
+    );
+  }
+
+  function strokeIntersectsErasePath(stroke, eraseSegs, width) {
+    if (!stroke || !stroke.points || stroke.points.length < 1) return false;
+    const pts = stroke.points;
+    if (pts.length === 1) {
+      for (const seg of eraseSegs) {
+        if (distancePointToSegment(pts[0].x, pts[0].y, seg.a.x, seg.a.y, seg.b.x, seg.b.y) <= width) return true;
+      }
+      return false;
+    }
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      for (const seg of eraseSegs) {
+        if (segmentsNear(a, b, seg.a, seg.b, width)) return true;
+      }
+    }
+    return false;
+  }
+
+  function eraseWithPath(points, width) {
+    const eraseSegs = [];
+    for (let i = 1; i < points.length; i++) eraseSegs.push({ a: points[i-1], b: points[i] });
+    const before = strokes.length;
+    strokes = strokes.filter(stroke => !strokeIntersectsErasePath(stroke, eraseSegs, width));
+    const removed = before - strokes.length;
+    if (removed > 0) addLog(`ERASE removed ${removed} stroke(s) with ${width}px path`);
+  }
+
+  function drawStroke(stroke) {
+    if (!stroke.points.length) return;
+    ctx.beginPath();
+    const first = stroke.points[0];
+    ctx.moveTo(px(first.x), px(first.y));
+
+    if (stroke.mode === 'erasePreview') {
+      ctx.strokeStyle = 'rgba(255,100,100,0.65)';
+      ctx.lineWidth = px(stroke.width * 2);
+      for (let i = 1; i < stroke.points.length; i++) {
+        const p = stroke.points[i];
+        ctx.lineTo(px(p.x), px(p.y));
+      }
+      ctx.stroke();
+      return;
+    }
+
+    for (let i = 1; i < stroke.points.length; i++) {
+      const p = stroke.points[i];
+      ctx.lineTo(px(p.x), px(p.y));
+    }
+    const lastPressure = stroke.points[stroke.points.length - 1].pressure ?? 0.5;
+    const baseWidth = stroke.baseWidth;
+    const width = pressureEnabled.checked && stroke.pointerType === 'pen'
+      ? baseWidth * (0.35 + lastPressure * 1.55)
+      : baseWidth;
+    ctx.strokeStyle = stroke.color;
+    ctx.lineWidth = px(width);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
+  function redraw() {
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const s of strokes) drawStroke(s);
+    if (draftStroke) drawStroke(draftStroke);
+  }
+
+  function setTool(mode) {
+    activeTool = mode;
+    toggleModeBtn.textContent = `Tool: ${mode === 'draw' ? 'Draw' : 'Erase'}`;
+  }
+
+  function detectNote(e) {
+    const notes = [];
+    if (e.pointerType === 'pen') notes.push('pen');
+    if (e.pointerType === 'touch') notes.push('touch');
+    if (e.button === 5 || (e.buttons & 32)) notes.push('eraser-end pattern');
+    if (e.button === 2 || (e.buttons & 2)) notes.push('barrel-button pattern');
+    if ((e.pressure || 0) > 0 && e.pointerType === 'pen') notes.push('pressure active');
+    return notes.join(' | ') || '—';
+  }
+
+  function updateFields(e) {
+    fields.eventType.textContent = e.type;
+    fields.pointerType.textContent = e.pointerType;
+    fields.button.textContent = String(e.button);
+    fields.buttons.textContent = String(e.buttons);
+    fields.pressure.textContent = Number(e.pressure || 0).toFixed(3);
+    fields.tilt.textContent = `${e.tiltX ?? 0} / ${e.tiltY ?? 0}`;
+    fields.twist.textContent = String(e.twist ?? 0);
+    fields.size.textContent = `${Number(e.width || 0).toFixed(1)} / ${Number(e.height || 0).toFixed(1)}`;
+    fields.notes.textContent = detectNote(e);
+  }
+
+  function addLog(lineOrEvent) {
+    const line = typeof lineOrEvent === 'string'
+      ? lineOrEvent
+      : `${new Date().toLocaleTimeString()}  ${lineOrEvent.type.padEnd(11)} type=${lineOrEvent.pointerType.padEnd(5)} button=${String(lineOrEvent.button).padStart(2)} buttons=${String(lineOrEvent.buttons).padStart(2)} pressure=${Number(lineOrEvent.pressure || 0).toFixed(3)} size=${Number(lineOrEvent.width || 0).toFixed(1)}x${Number(lineOrEvent.height || 0).toFixed(1)} tilt=${lineOrEvent.tiltX ?? 0},${lineOrEvent.tiltY ?? 0}`;
+    logLines.unshift(line);
+    if (logLines.length > 100) logLines.length = 100;
+    logEl.textContent = logLines.join('\n');
+  }
+
+  function eventWantsErase(e) {
+    return activeTool === 'erase' ||
+      e.button === 5 || (e.buttons & 32) ||
+      e.button === 2 || (e.buttons & 2);
+  }
+
+  function eventCanDraw(e) {
+    if (e.pointerType === 'pen') return true;
+    if (fingerDrawEnabled.checked && e.pointerType === 'touch') return true;
+    if (fingerDrawEnabled.checked && e.pointerType === 'mouse') return true;
+    return false;
+  }
+
+  function beginStroke(e) {
+    const p = clientToCanvas(e);
+    const erase = eventWantsErase(e);
+    draftStroke = {
+      mode: erase ? 'erasePreview' : 'draw',
+      points: [{ x: p.x, y: p.y, pressure: e.pressure || 0.5 }],
+      width: Number(eraserWidthInput.value),
+      baseWidth: 3,
+      color: e.pointerType === 'pen' ? '#87d6ff' : (e.pointerType === 'touch' ? '#ffd166' : '#ddd'),
+      pointerType: e.pointerType
+    };
+  }
+
+  function extendStroke(e) {
+    if (!draftStroke) return;
+    const p = clientToCanvas(e);
+    draftStroke.points.push({ x: p.x, y: p.y, pressure: e.pressure || 0.5 });
+    redraw();
+  }
+
+  function endStroke() {
+    if (!draftStroke) return;
+    if (draftStroke.mode === 'erasePreview') {
+      eraseWithPath(draftStroke.points, draftStroke.width);
+    } else if (draftStroke.points.length) {
+      strokes.push({
+        ...draftStroke,
+        mode: 'draw'
+      });
+    }
+    draftStroke = null;
+    redraw();
+  }
+
+  canvas.addEventListener('pointerdown', e => {
+    updateFields(e);
+    addLog(e);
+    const permitted = eventCanDraw(e) || eventWantsErase(e);
+    if (!permitted) return;
+    e.preventDefault();
+    activePointer = e.pointerId;
+    beginStroke(e);
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    redraw();
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    updateFields(e);
+    if (e.type === 'pointermove' && Math.random() < 0.12) addLog(e);
+    if (activePointer !== e.pointerId || !draftStroke) return;
+    e.preventDefault();
+    extendStroke(e);
+  });
+
+  function finish(e) {
+    updateFields(e);
+    addLog(e);
+    if (activePointer === e.pointerId) {
+      e.preventDefault();
+      endStroke();
+      activePointer = null;
+    }
+  }
+
+  canvas.addEventListener('pointerup', finish);
+  canvas.addEventListener('pointercancel', finish);
+  canvas.addEventListener('pointerenter', e => { updateFields(e); addLog(e); });
+  canvas.addEventListener('pointerleave', e => { updateFields(e); addLog(e); });
+
+  toggleModeBtn.addEventListener('click', () => setTool(activeTool === 'draw' ? 'erase' : 'draw'));
+  clearCanvasBtn.addEventListener('click', () => { strokes = []; draftStroke = null; redraw(); });
+  clearLogBtn.addEventListener('click', () => { logLines.length = 0; logEl.textContent = ''; });
+
+  eraserWidthInput.addEventListener('input', () => {
+    eraserWidthValue.textContent = `${eraserWidthInput.value} px`;
+  });
+
+  window.addEventListener('resize', resizeCanvas);
+  setTool('draw');
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>

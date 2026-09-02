@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>SSE Test</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #111;
+      color: #ddd;
+      padding: 20px;
+    }
+
+    #status {
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+
+    .ok {
+      color: #6f6;
+    }
+
+    .error {
+      color: #f66;
+    }
+
+    #log div {
+      margin: 3px 0;
+    }
+  </style>
+</head>
+<body>
+
+<h2>SSE streaming test</h2>
+
+<div id="status">Connecting...</div>
+<div id="log"></div>
+
+<script>
+const status = document.getElementById("status");
+const log = document.getElementById("log");
+
+const events = new EventSource("/scripts/sse_test.php");
+
+events.onopen = () => {
+  status.textContent = "Connected";
+  status.className = "ok";
+};
+
+events.onmessage = event => {
+  const now = new Date();
+
+  const row = document.createElement("div");
+  row.textContent =
+    now.toLocaleTimeString() +
+    " browser received: " +
+    event.data;
+
+  log.prepend(row);
+};
+
+events.onerror = () => {
+  status.textContent =
+    "Connection closed/error — EventSource will try to reconnect";
+
+  status.className = "error";
+};
+</script>
+
+</body>
+</html>

@@ -1,0 +1,3 @@
+.well-known
+show-scripts/*
+!show-scripts/pirates_test_script.html

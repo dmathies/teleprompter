@@ -1,0 +1,19 @@
+{
+    "script": "chaplin",
+    "department": "LX",
+    "revision": 1,
+    "cues": [
+        {
+            "id": "lx-5b3390760db4f0ba",
+            "number": "2",
+            "description": "Another",
+            "color": "#2f80ed",
+            "anchor": {
+                "type": "word",
+                "prompt": "p000221",
+                "wordIndex": 4,
+                "text": "Karno."
+            }
+        }
+    ]
+}
