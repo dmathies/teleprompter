@@ -24,6 +24,11 @@ Room state and ownership JSON live in the ignored, deployment-writable
 `scripts/teleprompter_state/` directory. They persist on the server but are not
 source-controlled.
 
+Master authentication reads the `master` entry from the ignored
+`scripts/passwords.php`. The file must be provisioned separately on every
+server; `scripts/passwords.example.php` documents its shape without containing
+a usable secret.
+
 The browser schedules publishing every 250 ms, permits only one request in
 flight, and aborts after two seconds. Unchanged semantic state is suppressed,
 but the master writes a heartbeat at least every two seconds while healthy.

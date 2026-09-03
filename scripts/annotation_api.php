@@ -3,7 +3,11 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('X-Content-Type-Options: nosniff');
 
 $catalog = require __DIR__ . '/script_catalog.php';
-$passwords = require __DIR__ . '/cue_passwords.php';
+$passwordConfig = require __DIR__ . '/passwords.php';
+$passwords = is_array($passwordConfig) && is_array($passwordConfig['departments'] ?? null)
+    ? $passwordConfig['departments']
+    : [];
+unset($passwordConfig);
 require_once __DIR__ . '/auth_cookie.php';
 $allowedDepartments = ['FS', 'LX', 'SND', 'STG'];
 $annotationDir = dirname(__DIR__) . '/show-annotations';

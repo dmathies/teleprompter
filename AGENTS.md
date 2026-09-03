@@ -154,6 +154,9 @@ test suite; state clearly which scenarios were actually exercised.
 ## Secrets, runtime data, and Git
 
 - Never add passwords or other credentials to tracked source files.
+- Master and department secrets belong in the ignored
+  `scripts/passwords.php`, using `scripts/passwords.example.php` as the schema.
+  Production must provision the real file separately from Git deployment.
 - Do not add copyrighted production scripts to the public repository.
 - Treat `scripts/teleprompter_state/`, `show-cues/`, and `show-annotations/` as
   ignored writable deployment data, not source. Their `.gitkeep` files preserve
@@ -161,8 +164,9 @@ test suite; state clearly which scenarios were actually exercised.
 - Previously committed runtime data remains in Git history even after being
   untracked. Do not rewrite history without explicit authorization and a
   coordinated deployment plan.
-- Existing tracked credentials are legacy exposure, not a pattern to preserve.
-  Follow the credential migration proposal in `docs/architecture.md`.
+- Previously committed credentials remain exposed in Git history. Never restore
+  `scripts/cue_passwords.php` or hard-code a master password in an endpoint;
+  rotate disclosed values before production use.
 - Keep commits focused. Do not rewrite Git history unless explicitly asked.
 - Do not commit temporary diagnostics or generated operational data.
 

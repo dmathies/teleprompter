@@ -48,28 +48,42 @@ cookies for 24 hours.
 Annotation files belong only in the root `show-annotations/` directory. The
 application does not read annotation data from beneath `scripts/`.
 
-## Credential migration proposal
+## Credential configuration
 
-The repository currently contains legacy plaintext master and department
-passwords. Because the repository is public, assume those values are disclosed.
-A safe migration should be coordinated with production deployment:
+Master and department credentials are stored together in the ignored
+`scripts/passwords.php` file. Its tracked schema is
+`scripts/passwords.example.php`:
 
-1. Rotate every current master and department password.
-2. Change PHP configuration to read `TP_MASTER_PASSWORD` and department values
-   such as `TP_CUE_PASSWORD_LX` from the hosting environment. Fail closed when a
-   required value is absent; do not retain committed fallback passwords.
-3. If the host cannot provide environment secrets, load an untracked PHP file
-   located outside the public document root. Commit only a `.example` template.
-4. Deploy the configuration change and new secrets together. Password rotation
-   naturally invalidates existing signed authentication cookies.
-5. Remove the old values from the current Git tree. If they have ever been
-   pushed publicly, rotation is mandatory; deleting them in a later commit does
-   not erase history. Rewrite history only as a separately approved,
-   coordinated operation.
+```php
+return [
+    'master' => '...',
+    'departments' => [
+        'FS' => '...',
+        'LX' => '...',
+        'SND' => '...',
+        'STG' => '...',
+    ],
+];
+```
 
-Do not store raw passwords in browser storage or send them in query strings.
-The current password header is used only during login/current-session requests,
-after which the HTTP-only cookie can authenticate.
+The real file must be provisioned separately because Git ignores it. A Git-only
+deployment without `scripts/passwords.php` leaves authenticated endpoints
+unavailable. On production:
+
+1. Copy the example to `scripts/passwords.php` outside the Git deployment
+   process and fill every value.
+2. Rotate every value that previously appeared in repository history; those
+   credentials must be considered disclosed. Rotation invalidates existing
+   signed authentication cookies.
+3. Remove the obsolete deployed `scripts/cue_passwords.php` manually. The
+   deployment pipeline preserves deleted files and will not remove it.
+4. Restrict filesystem access to the secret file and ensure the web server
+   executes PHP rather than serving its source.
+5. Back up the secret through the hosting secret-management process, not Git.
+
+Do not store raw passwords in browser storage or query strings. Rewriting public
+Git history is optional defense-in-depth after rotation and requires a separate,
+coordinated decision.
 
 ## Runtime-data Git policy
 

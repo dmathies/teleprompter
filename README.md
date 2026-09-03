@@ -18,3 +18,7 @@ Start with:
 Copyrighted production scripts and writable runtime JSON are installed or
 created during deployment and are intentionally not tracked. The repository
 retains only directory placeholders and sanitized/public test content.
+
+Before running authenticated endpoints, copy
+`scripts/passwords.example.php` to the ignored `scripts/passwords.php`, replace
+every placeholder, and provision that file separately in production.

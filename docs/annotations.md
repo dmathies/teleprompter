@@ -37,6 +37,10 @@ touch, or pen input. A pen can also open the temporary palette and draw without
 turning finger navigation into drawing. Device eraser ends and supported barrel
 buttons select path erasing.
 
+Department authentication uses the corresponding entry in the `departments`
+map in the ignored `scripts/passwords.php`. It shares configuration storage
+with the ASM credential but remains a separate authorization role.
+
 Erasing samples a 10-pixel-wide path and deletes every annotation shape it
 touches. The translucent canvas trail is only visual feedback and disappears
 shortly after the stroke; it must remain non-interactive.

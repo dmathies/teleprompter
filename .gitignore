@@ -6,6 +6,7 @@ show-scripts/*
 
 # Writable deployment data. Keep local/production JSON across deployments,
 # but never publish live show state, cues, or annotations in the repository.
+scripts/passwords.php
 scripts/teleprompter_state/*.json
 !scripts/teleprompter_state/.gitkeep
 show-cues/*.json

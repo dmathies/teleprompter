@@ -1,6 +1,10 @@
 <?php
 // teleprompter_sync.php
-$MASTER_PASSWORD = 'Giselaprompt2026';
+$passwordConfig = require __DIR__ . '/passwords.php';
+$MASTER_PASSWORD = is_array($passwordConfig) && is_string($passwordConfig['master'] ?? null)
+    ? $passwordConfig['master']
+    : '';
+unset($passwordConfig);
 require_once __DIR__ . '/auth_cookie.php';
 
 header('Content-Type: application/json; charset=utf-8');
