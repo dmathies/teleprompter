@@ -970,6 +970,7 @@
     let cueEditorUnlocked = false;
     let loadedCues = [];
     let cueRevision = 0;
+    let cueLoadSerial = 0;
     let editingCue = null;
     let editingAnchorPrompt = null;
     let editingAnchorWordIndex = null;
@@ -1660,21 +1661,29 @@
       });
     }
 
-    async function loadDepartmentCues() {
-      loadedCues = [];
-      cueRevision = 0;
-      clearCueDecorations();
-
+    async function loadDepartmentCues({preserveExisting=false} = {}) {
       if (!activeDepartment || !currentScriptId) return;
 
+      const script = currentScriptId;
+      const department = activeDepartment;
+      const serial = ++cueLoadSerial;
+
+      if (!preserveExisting) {
+        loadedCues = [];
+        cueRevision = 0;
+        clearCueDecorations();
+      }
+
       const url = CUE_API_ENDPOINT +
-        "?action=get&script=" + encodeURIComponent(currentScriptId) +
-        "&dept=" + encodeURIComponent(activeDepartment) +
+        "?action=get&script=" + encodeURIComponent(script) +
+        "&dept=" + encodeURIComponent(department) +
         "&_=" + Date.now();
 
       const response = await fetch(url, {cache: "no-store"});
       if (!response.ok) throw new Error("Cue load HTTP " + response.status);
       const body = await response.json();
+      if (serial !== cueLoadSerial ||
+          script !== currentScriptId || department !== activeDepartment) return;
       loadedCues = Array.isArray(body.cues) ? body.cues : [];
       cueRevision = Number(body.revision) || 0;
       renderCues();
@@ -2867,6 +2876,23 @@
       loadDepartmentAnnotations({preferCache:false});
     }
 
+    async function handleCueRevisionEvent(event) {
+      if (!activeDepartment || !currentScriptId) return;
+      let body = null;
+      try { body = JSON.parse(event.data); } catch (_) { return; }
+      const revisions = body && body.revisions;
+      if (!revisions || typeof revisions !== 'object') return;
+      const entry = revisions[currentScriptId + '_' + activeDepartment];
+      if (!entry || Number(entry.revision) <= cueRevision) return;
+
+      try {
+        await loadDepartmentCues({preserveExisting:true});
+      } catch (_) {
+        // Keep the currently rendered cues. The next signal or page/script
+        // reload will retry without disrupting live follower operation.
+      }
+    }
+
     async function loadShowScript(id) {
       if (!availableScripts.some(s => s.id === id)) throw new Error("unknown script");
       const serial = ++scriptLoadSerial;
@@ -3769,6 +3795,12 @@
         if (events !== followEventSource) return;
         lastServerHeartbeatPerf = performance.now();
         handleAnnotationRevisionEvent(event);
+      });
+
+      events.addEventListener('cue-revision', (event) => {
+        if (events !== followEventSource) return;
+        lastServerHeartbeatPerf = performance.now();
+        handleCueRevisionEvent(event);
       });
 
       events.addEventListener('server-heartbeat', () => {

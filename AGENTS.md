@@ -65,8 +65,8 @@ position within that prompt. Followers map it into their own local layout; raw
 pixel scroll offsets are not shared.
 
 SSE is the primary follower transport. Adaptive HTTP polling is an automatic
-fallback while SSE reconnects. SSE also carries server-heartbeat and annotation
-revision events.
+fallback while SSE reconnects. SSE also carries server-heartbeat, cue-revision,
+and annotation-revision events.
 
 Master state is fresh for 10 seconds, matching the server-side master lease.
 A follower must not change script or position from state that is already stale
@@ -94,8 +94,9 @@ public-domain test fixture. See `docs/script-format.md` before editing markup.
 ## Cues
 
 Persistent cue documents live in `show-cues/<script>_<department>.json`. Cue
-updates are not broadcast live to other clients. Preserve existing files or
-provide a migration when changing the schema.
+revisions are announced over SSE so matching department followers reload them
+without a page refresh. Preserve existing files or provide a migration when
+changing the schema.
 
 ## Annotations
 

@@ -17,8 +17,8 @@ The PHP endpoints are:
 | `list_scripts.php` | Return readable entries from the script catalog. |
 | `get_script.php` | Return one allow-listed HTML script fragment. |
 | `teleprompter_sync.php` | Claim master control, write state, and serve polling reads. |
-| `teleprompter_events.php` | Stream state, heartbeats, and annotation revisions over SSE. |
-| `cue_api.php` | Read and mutate department cue documents. |
+| `teleprompter_events.php` | Stream state, heartbeats, cue revisions, and annotation revisions over SSE. |
+| `cue_api.php` | Read and mutate department cue documents and publish revision signals. |
 | `annotation_api.php` | Read and mutate annotation documents and publish revision signals. |
 | `auth_cookie.php` | Issue and verify signed role cookies. |
 
@@ -44,6 +44,7 @@ cookies for 24 hours.
 | `scripts/teleprompter_state/<room>.json` | Ignored runtime data: latest master state. |
 | `scripts/teleprompter_state/<room>.master.json` | Ignored runtime data: master owner and lease timestamps. |
 | `scripts/teleprompter_state/annotation_revisions.json` | Ignored runtime data: annotation revision notification map. |
+| `scripts/teleprompter_state/cue_revisions.json` | Ignored runtime data: cue revision notification map. |
 
 Annotation files belong only in the root `show-annotations/` directory. The
 application does not read annotation data from beneath `scripts/`.

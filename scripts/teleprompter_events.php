@@ -29,6 +29,7 @@ if (!preg_match('/^[A-Za-z0-9_-]+$/', $room)) {
 $stateDir = __DIR__ . '/teleprompter_state';
 $file = $stateDir . '/' . $room . '.json';
 $annotationSignalFile = $stateDir . '/annotation_revisions.json';
+$cueSignalFile = $stateDir . '/cue_revisions.json';
 
 // A finite stream is friendlier to shared PHP-FPM hosting. EventSource
 // reconnects automatically, carrying Last-Event-ID when available.
@@ -40,6 +41,7 @@ $startedAt = microtime(true);
 $lastHeartbeatAt = 0.0;
 $lastSignature = null;
 $lastAnnotationSignature = null;
+$lastCueSignature = null;
 $lastEventId = $_SERVER['HTTP_LAST_EVENT_ID'] ?? '';
 
 function read_state_locked(string $file): ?array {
@@ -69,6 +71,12 @@ function emit_annotation_revisions(array $map): void {
     flush();
 }
 
+function emit_cue_revisions(array $map): void {
+    echo "event: cue-revision\n";
+    echo 'data: ' . json_encode(['revisions' => $map], JSON_UNESCAPED_SLASHES) . "\n\n";
+    flush();
+}
+
 function emit_state(array $state): void {
     $sequence = isset($state['sequence']) ? (string)$state['sequence'] : '';
 
@@ -94,6 +102,16 @@ while ((microtime(true) - $startedAt) < $maxLifetimeSeconds) {
 
     $state = read_state_locked($file);
     $annotationRevisions = read_state_locked($annotationSignalFile);
+    $cueRevisions = read_state_locked($cueSignalFile);
+
+    if ($cueRevisions !== null) {
+        $cueSignature = json_encode($cueRevisions, JSON_UNESCAPED_SLASHES);
+        if ($cueSignature !== false && $cueSignature !== $lastCueSignature) {
+            $lastCueSignature = $cueSignature;
+            emit_cue_revisions($cueRevisions);
+            $lastHeartbeatAt = microtime(true);
+        }
+    }
 
     if ($annotationRevisions !== null) {
         $annotationSignature = json_encode($annotationRevisions, JSON_UNESCAPED_SLASHES);

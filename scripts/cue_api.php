@@ -11,6 +11,8 @@ unset($passwordConfig);
 require_once __DIR__ . '/auth_cookie.php';
 $allowedDepartments = ['FS', 'LX', 'SND', 'STG'];
 $cueDir = dirname(__DIR__) . '/show-cues';
+$stateDir = __DIR__ . '/teleprompter_state';
+$signalFile = $stateDir . '/cue_revisions.json';
 
 function respond_json(int $status, array $body): never {
     http_response_code($status);
@@ -59,6 +61,38 @@ function read_doc(string $file, string $script, string $dept): array {
     $raw = file_get_contents($file);
     if ($raw === false || trim($raw) === '') return empty_doc($script, $dept);
     return normalize_doc(json_decode($raw, true), $script, $dept);
+}
+
+function update_revision_signal(string $signalFile, string $stateDir, string $script, string $dept, int $revision): void {
+    if (!is_dir($stateDir) && !mkdir($stateDir, 0775, true) && !is_dir($stateDir)) return;
+
+    $fp = @fopen($signalFile, 'c+');
+    if ($fp === false) return;
+    if (!@flock($fp, LOCK_EX)) { fclose($fp); return; }
+
+    rewind($fp);
+    $raw = stream_get_contents($fp);
+    $map = ($raw === false || trim($raw) === '') ? [] : json_decode($raw, true);
+    if (!is_array($map)) $map = [];
+
+    $key = $script . '_' . $dept;
+    $map[$key] = [
+        'script' => $script,
+        'department' => $dept,
+        'revision' => $revision,
+        'updatedAt' => microtime(true),
+    ];
+
+    $encoded = json_encode($map, JSON_UNESCAPED_SLASHES);
+    if ($encoded !== false) {
+        rewind($fp);
+        ftruncate($fp, 0);
+        fwrite($fp, $encoded);
+        fflush($fp);
+    }
+
+    flock($fp, LOCK_UN);
+    fclose($fp);
 }
 
 function require_editor_password(string $dept, array $passwords): void {
@@ -240,6 +274,9 @@ try {
 
     flock($fp, LOCK_UN);
     fclose($fp);
+
+    update_revision_signal($signalFile, $stateDir, $script, $dept, $doc['revision']);
+
     respond_json(200, ['ok'=>true, 'revision'=>$doc['revision'], 'cues'=>$doc['cues']]);
 } catch (Throwable $e) {
     flock($fp, LOCK_UN);
