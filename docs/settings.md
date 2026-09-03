@@ -2,6 +2,10 @@
 
 The gear button opens a modal for display settings. Settings apply immediately
 and preserve the current semantic script position while the layout reflows.
+The dialog markup is in `teleprompter.html`, its visual rules are in
+`css/teleprompter.css`, client state and event handling are in `js/main.js`, and
+central settings are served by `scripts/settings_api.php`. Export consumes the
+same central settings through `js/pdf-export.js`.
 
 ## Storage and scope
 

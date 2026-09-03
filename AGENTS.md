@@ -34,16 +34,21 @@ Read the focused documentation before changing the corresponding area:
 
 Before making a substantial change:
 
-1. Identify the browser and server code responsible for the behaviour.
+1. Identify the HTML, CSS, browser module, and server code responsible for the
+   behaviour.
 2. Explain briefly what is happening.
 3. Make the smallest reasonable fix.
 4. Test related master, follower, department-editor, and reconnect behaviour.
 
 ## Architecture and roles
 
-Most browser behaviour is implemented in `teleprompter.html`. PHP endpoints
-provide a script catalog, filesystem persistence, master ownership, polling,
-and server-sent events (SSE). There is no build system or application database.
+`teleprompter.html` is the browser DOM shell and loads `css/teleprompter.css`
+plus the native ES-module entry point `js/main.js`. The entry point coordinates
+focused modules for DOM lookup, semantic positions, sync-protocol helpers, cue
+text, annotation geometry, annotation IndexedDB storage, and print/PDF export.
+Shared pure presentation helpers live in `js/utils.js`. PHP endpoints provide a
+script catalog, filesystem persistence, master ownership, polling, and
+server-sent events (SSE). There is no build system or application database.
 
 There are three relevant client roles:
 

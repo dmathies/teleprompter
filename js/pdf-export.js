@@ -1,4 +1,5 @@
 import { contrastingTextColor } from "./utils.js";
+import { normalizeSemanticPosition } from "./semantic-position.js";
 
 export function createPdfExporter(deps) {
   const { exportStatus, exportDepartment, exportPanel, exportBackdrop, exportCues, exportAnnotations, exportStageDirections, exportOpenBtn, ALLOWED_DEPARTMENTS, CUE_API_ENDPOINT, ANNOTATION_API_ENDPOINT, SETTINGS_API_ENDPOINT, SCRIPT_GET_ENDPOINT, normalizeDepartmentMargin, departmentDefaultColor, getCurrentScriptId, getActiveDepartment, getAvailableScripts } = deps;
@@ -277,8 +278,8 @@ export function createPdfExporter(deps) {
               segment.className='print-cue-range';
               segment.style.setProperty('--cue-color',color);
               segment.style.left=offset+'px';
-              if (i===startIndex) segment.style.top=(Math.max(0,Math.min(1,Number(cue.anchor.fraction)||0))*100)+'%';
-              if (i===endIndex) segment.style.bottom=((1-Math.max(0,Math.min(1,Number(cue.endAnchor.fraction)||0)))*100)+'%';
+              if (i===startIndex) segment.style.top=((normalizeSemanticPosition(cue.anchor,{defaultFraction:0})?.fraction || 0)*100)+'%';
+              if (i===endIndex) segment.style.bottom=((1-(normalizeSemanticPosition(cue.endAnchor,{defaultFraction:0})?.fraction || 0))*100)+'%';
               block.appendChild(segment);
             }
           }

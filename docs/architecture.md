@@ -6,9 +6,34 @@ The teleprompter is a static browser application with small PHP endpoints and
 filesystem persistence. It deliberately has no JavaScript framework, build
 pipeline, package manager, or database.
 
-`teleprompter.html` owns nearly all client behaviour: display, autoscroll,
-touch navigation, master/follower state, cue rendering/editing, annotations,
-fullscreen, wake lock, and browser-generated print/PDF export.
+The browser uses native ES modules. There is no generated bundle: these source
+files are deployed and served directly.
+
+| Client file | Responsibility |
+| --- | --- |
+| `teleprompter.html` | DOM shell for the toolbar, dialogs, overview rail, annotation tools, and script viewport. It loads the stylesheet and module entry point but contains no application logic. |
+| `css/teleprompter.css` | All application layout and visual states, including responsive, cue, annotation, rail, modal, and follow/master styling. |
+| `js/main.js` | Browser entry point and coordinator: script loading, display and navigation, master/follower control flow, cue and annotation workflows, settings, fullscreen, and wake lock. |
+| `js/dom.js` | Central lookup of the fixed teleprompter DOM elements consumed by `main.js`. |
+| `js/semantic-position.js` | Validation, capture, comparison, and DOM mapping of prompt-and-fraction semantic positions. |
+| `js/sync-protocol.js` | State-delivery age validation and stable motion signatures used by synchronization. |
+| `js/cue-text.js` | Script text-node enumeration, cue word indexing, and live trigger-word wrapping. |
+| `js/annotation-geometry.js` | Live annotation coordinate conversion, SVG shape construction, scaling, and layer cleanup. |
+| `js/annotation-store.js` | IndexedDB access for cached annotation documents and queued offline operations. |
+| `js/pdf-export.js` | Browser-generated print/PDF view, including export data loading, markup decoration, pagination, and print annotation rendering. |
+| `js/utils.js` | Shared pure colour and health-display helpers used by the browser modules. |
+
+`teleprompter.html` loads `js/main.js` with `type="module"`. `main.js` imports
+the focused modules and creates their stateful APIs by passing explicit DOM
+elements and accessors. `pdf-export.js` imports the shared colour helper and
+semantic-position normalization, while `main.js` injects its required dialog
+elements, endpoints, settings normalization, and current-state accessors. The
+feature modules do not own the application's live top-level state. Keep this
+direction of dependency when moving code between modules, and avoid introducing
+globals merely to cross a module boundary.
+
+The client must be served over HTTP(S), rather than opened as a local file, so
+native module loading and endpoint requests use the same web origin.
 
 The PHP endpoints are:
 
@@ -24,6 +49,21 @@ The PHP endpoints are:
 | `auth_cookie.php` | Issue and verify signed role cookies. |
 
 All current browser clients use synchronization room `main`.
+
+## Where to make browser changes
+
+- Change `teleprompter.html` when controls or dialog structure changes, and
+  update the corresponding element lookup and event wiring in `js/main.js`.
+- Change `css/teleprompter.css` for visual or responsive behaviour; script
+  fragments may still provide narrowly scoped show-specific styles.
+- Change `js/main.js` for live display, synchronization, cues, annotations, or
+  settings coordination and event wiring.
+- Change the focused `js/` module that owns a reusable primitive rather than
+  duplicating its logic in `js/main.js` or `js/pdf-export.js`.
+- Change `js/pdf-export.js` for the generated print document. Export has its
+  own stylesheet and DOM, so screen-CSS changes do not automatically affect it.
+- Put a helper in `js/utils.js` only when it is state-free and genuinely shared
+  by browser modules.
 
 ## Client roles
 

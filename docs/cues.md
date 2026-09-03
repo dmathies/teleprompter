@@ -1,5 +1,14 @@
 # Department cues
 
+Live cue loading, editing, synchronization, and screen rendering are
+implemented in `js/main.js`, with their visual rules in
+`css/teleprompter.css`. Shared live text-node enumeration, word indexing, and
+trigger-word wrapping are in `js/cue-text.js`; anchor positioning uses
+`js/semantic-position.js`. Server persistence is handled by
+`scripts/cue_api.php`. Print-only cue rendering remains a separate
+implementation in `js/pdf-export.js` and must stay semantically consistent with
+the live view.
+
 ## Storage format
 
 Cue documents are stored as ignored deployment data in

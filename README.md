@@ -4,6 +4,22 @@ Web-based theatre teleprompter for live performances. The application is a
 static HTML/JavaScript client with lightweight PHP synchronization and
 filesystem persistence.
 
+The browser client is served without a build step. `teleprompter.html` defines
+the UI markup, `css/teleprompter.css` contains its styles, and the ES modules in
+`js/` implement the application:
+
+- `js/main.js` is the entry point and coordinates live teleprompter behaviour;
+- `js/dom.js`, `js/semantic-position.js`, and `js/sync-protocol.js` isolate DOM
+  lookup and synchronization primitives;
+- `js/cue-text.js`, `js/annotation-geometry.js`, and
+  `js/annotation-store.js` isolate cue and annotation support;
+- `js/pdf-export.js` builds the separate print/PDF view;
+- `js/utils.js` contains shared pure presentation helpers.
+
+Because the entry point uses native JavaScript modules and fetches PHP
+endpoints, run it through the target web server rather than opening
+`teleprompter.html` directly from the filesystem.
+
 Start with:
 
 - [`AGENTS.md`](AGENTS.md) for repository working rules;

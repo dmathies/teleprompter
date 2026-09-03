@@ -6,6 +6,13 @@ Show scripts are trusted HTML fragments stored in `show-scripts/`. They are
 allow-listed by `scripts/script_catalog.php`, returned by `get_script.php`, and
 inserted into the teleprompter's `#content` element.
 
+Live fragment loading and decoration are coordinated in `js/main.js`.
+`js/semantic-position.js` maps stable prompt IDs and fractions to live DOM
+geometry, and `js/cue-text.js` enumerates the text used for cue word anchors.
+`js/pdf-export.js` fetches and decorates a fresh copy for print. Shared screen
+styles for recognized script structures live in `css/teleprompter.css`; the
+export module maintains its own print stylesheet.
+
 Copyrighted production scripts are deployed separately and must not be added to
 the public repository. The repository intentionally tracks only the
 public-domain Pirates test fragment. A catalog entry whose file is absent is

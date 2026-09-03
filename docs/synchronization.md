@@ -1,5 +1,12 @@
 # Master/follower synchronization
 
+Synchronization control flow and transport handling are in `js/main.js`.
+`js/semantic-position.js` owns prompt/fraction capture and DOM mapping, while
+`js/sync-protocol.js` owns delivery-age validation and motion signatures. The
+sync and SSE PHP endpoints are `scripts/teleprompter_sync.php` and
+`scripts/teleprompter_events.php`. Synchronization is not implemented in the
+HTML shell or the PDF-export module.
+
 ## Semantic position
 
 The reference point is 35% down the viewport. The master finds the script block

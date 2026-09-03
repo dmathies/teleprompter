@@ -1,90 +1,97 @@
 import { contrastingTextColor, formatHealthAge, healthClass, hslToRgb } from "./utils.js";
 import { createPdfExporter } from "./pdf-export.js";
+import { createSemanticPositionApi } from "./semantic-position.js";
+import { createAnnotationStore } from "./annotation-store.js";
+import { cueTextNodes, cueWordEntries, wrapCueTriggerWord as wrapCueTriggerWordElement } from "./cue-text.js";
+import { createAnnotationGeometry } from "./annotation-geometry.js";
+import { getTeleprompterDom } from "./dom.js";
+import { stateAgeAtDeliveryMs, motionSignature } from "./sync-protocol.js";
 
-const viewport = document.getElementById("viewport");
-    const content = document.getElementById("content");
-    const contextHeader = document.getElementById("contextHeader");
-    const headerAct = document.getElementById("headerAct");
-    const headerScene = document.getElementById("headerScene");
-    const headerPage = document.getElementById("headerPage");
-    const overviewRail = document.getElementById("overviewRail");
-    const overviewMarkers = document.getElementById("overviewMarkers");
-    const overviewViewportIndicator = document.getElementById("overviewViewportIndicator");
-
-    const playPauseBtn = document.getElementById("playPauseBtn");
-    const backBtn = document.getElementById("backBtn");
-    const slowerBtn = document.getElementById("slowerBtn");
-    const fasterBtn = document.getElementById("fasterBtn");
-    const topBtn = document.getElementById("topBtn");
-    const bottomBtn = document.getElementById("bottomBtn");
-    const fullscreenBtn = document.getElementById("fullscreenBtn");
-    const wakeLockBtn = document.getElementById("wakeLockBtn");
-    const stageDirectionsBtn = document.getElementById("stageDirectionsBtn");
-    const settingsBtn = document.getElementById("settingsBtn");
-    const settingsBackdrop = document.getElementById("settingsBackdrop");
-    const settingsPanel = document.getElementById("settingsPanel");
-    const railSideSelect = document.getElementById("railSideSelect");
-    const settingsMarginControls = document.getElementById("settingsMarginControls");
-    const annotationMarginSideSelect = document.getElementById("annotationMarginSideSelect");
-    const annotationMarginWidth = document.getElementById("annotationMarginWidth");
-    const annotationMarginWidthValue = document.getElementById("annotationMarginWidthValue");
-    const settingsSaveStatus = document.getElementById("settingsSaveStatus");
-    const settingsDoneBtn = document.getElementById("settingsDoneBtn");
-    const exportBtn = document.getElementById("exportBtn");
-    const exportBackdrop = document.getElementById("exportBackdrop");
-    const exportPanel = document.getElementById("exportPanel");
-    const exportDepartment = document.getElementById("exportDepartment");
-    const exportStageDirections = document.getElementById("exportStageDirections");
-    const exportCues = document.getElementById("exportCues");
-    const exportAnnotations = document.getElementById("exportAnnotations");
-    const exportStatus = document.getElementById("exportStatus");
-    const exportCancelBtn = document.getElementById("exportCancelBtn");
-    const exportOpenBtn = document.getElementById("exportOpenBtn");
-    const overviewMasterIndicator = document.getElementById("overviewMasterIndicator");
-    const speedInput = document.getElementById("speedInput");
-    const speedControl = document.getElementById("speedControl");
-    const fontSizeInput = document.getElementById("fontSizeInput");
-    const status = document.getElementById("status");
-    const scriptSelect = document.getElementById("scriptSelect");
-    const sceneSelect = document.getElementById("sceneSelect");
-    const songSelect = document.getElementById("songSelect");
-    const rejoinBtn = document.getElementById("rejoinBtn");
-    const syncStatus = document.getElementById("syncStatus");
-    const masterHealthStatus = document.getElementById("masterHealthStatus");
-    const masterIdleBorder = document.getElementById("masterIdleBorder");
-    const masterBtn = document.getElementById("masterBtn");
-    const passwordPanel = document.getElementById("passwordPanel");
-    const masterPassword = document.getElementById("masterPassword");
-    const masterLoginBtn = document.getElementById("masterLoginBtn");
-    const takeControlBtn = document.getElementById("takeControlBtn");
-    const masterCancelBtn = document.getElementById("masterCancelBtn");
-    const deptLabel = document.getElementById("deptLabel");
-    const addCueBtn = document.getElementById("addCueBtn");
-    const annotateBtn = document.getElementById("annotateBtn");
-    const nextCueBtn = document.getElementById("nextCueBtn");
-    const annotationTools = document.getElementById("annotationTools");
-    const annotationColor = document.getElementById("annotationColor");
-    const annotationWidth = document.getElementById("annotationWidth");
-    const annotationUndoBtn = document.getElementById("annotationUndoBtn");
-    const annotationDoneBtn = document.getElementById("annotationDoneBtn");
-    const annotationSyncStatus = document.getElementById("annotationSyncStatus");
-    const cueEditorPanel = document.getElementById("cueEditorPanel");
-    const cueEditorTitle = document.getElementById("cueEditorTitle");
-    const cueNumber = document.getElementById("cueNumber");
-    const cueDescription = document.getElementById("cueDescription");
-    const cueColor = document.getElementById("cueColor");
-    const cueAnchorInfo = document.getElementById("cueAnchorInfo");
-    const cueWordRow = document.getElementById("cueWordRow");
-    const cueChooseWordBtn = document.getElementById("cueChooseWordBtn");
-    const cueWordInfo = document.getElementById("cueWordInfo");
-    const cueUseEndCurrentBtn = document.getElementById("cueUseEndCurrentBtn");
-    const cueClearEndBtn = document.getElementById("cueClearEndBtn");
-    const cueEndInfo = document.getElementById("cueEndInfo");
-    const cueEditorError = document.getElementById("cueEditorError");
-    const cueUseCurrentBtn = document.getElementById("cueUseCurrentBtn");
-    const cueDeleteBtn = document.getElementById("cueDeleteBtn");
-    const cueCancelBtn = document.getElementById("cueCancelBtn");
-    const cueSaveBtn = document.getElementById("cueSaveBtn");
+const {
+  viewport,
+  content,
+  contextHeader,
+  headerAct,
+  headerScene,
+  headerPage,
+  overviewRail,
+  overviewMarkers,
+  overviewViewportIndicator,
+  playPauseBtn,
+  backBtn,
+  slowerBtn,
+  fasterBtn,
+  topBtn,
+  bottomBtn,
+  fullscreenBtn,
+  wakeLockBtn,
+  stageDirectionsBtn,
+  settingsBtn,
+  settingsBackdrop,
+  settingsPanel,
+  railSideSelect,
+  settingsMarginControls,
+  annotationMarginSideSelect,
+  annotationMarginWidth,
+  annotationMarginWidthValue,
+  settingsSaveStatus,
+  settingsDoneBtn,
+  exportBtn,
+  exportBackdrop,
+  exportPanel,
+  exportDepartment,
+  exportStageDirections,
+  exportCues,
+  exportAnnotations,
+  exportStatus,
+  exportCancelBtn,
+  exportOpenBtn,
+  overviewMasterIndicator,
+  speedInput,
+  speedControl,
+  fontSizeInput,
+  status,
+  scriptSelect,
+  sceneSelect,
+  songSelect,
+  rejoinBtn,
+  syncStatus,
+  masterHealthStatus,
+  masterIdleBorder,
+  masterBtn,
+  passwordPanel,
+  masterPassword,
+  masterLoginBtn,
+  takeControlBtn,
+  masterCancelBtn,
+  deptLabel,
+  addCueBtn,
+  annotateBtn,
+  nextCueBtn,
+  annotationTools,
+  annotationColor,
+  annotationWidth,
+  annotationUndoBtn,
+  annotationDoneBtn,
+  annotationSyncStatus,
+  cueEditorPanel,
+  cueEditorTitle,
+  cueNumber,
+  cueDescription,
+  cueColor,
+  cueAnchorInfo,
+  cueWordRow,
+  cueChooseWordBtn,
+  cueWordInfo,
+  cueUseEndCurrentBtn,
+  cueClearEndBtn,
+  cueEndInfo,
+  cueEditorError,
+  cueUseCurrentBtn,
+  cueDeleteBtn,
+  cueCancelBtn,
+  cueSaveBtn
+} = getTeleprompterDom();
 
 
     content.innerHTML =
@@ -209,7 +216,6 @@ const viewport = document.getElementById("viewport");
     let annotationPointerId = null;
     let annotationUndoStack = [];
     let annotationRenderPending = false;
-    let annotationDbPromise = null;
     let annotationFlushRunning = false;
     let annotationSyncDebounceTimer = null;
     let annotationPreviousTool = null;
@@ -273,6 +279,25 @@ const viewport = document.getElementById("viewport");
     }
 
     const promptBlocks = () => cachedPromptBlocks;
+
+    const semanticPosition = createSemanticPositionApi({
+      content, viewport, getPromptBlocks: promptBlocks,
+      referenceLineFraction: REFERENCE_LINE_FRACTION
+    });
+    const annotationStore = createAnnotationStore();
+    const annotationGeometry = createAnnotationGeometry({
+      content, fontSizeInput,
+      getDepartmentMargin: () => departmentMarginSetting(),
+      getActiveDepartment: () => activeDepartment,
+      getDepartmentColor: () => departmentDefaultColor()
+    });
+    const currentScriptFontPx = () => annotationGeometry.currentScriptFontPx();
+    const promptLineHeightPx = block => annotationGeometry.lineHeightPx(block);
+    const promptHorizontalGeometry = block => annotationGeometry.horizontalGeometry(block);
+    const annotationPointToPx = (point, geometry, blockHeight, lineHeight, ann) => annotationGeometry.pointToPx(point, geometry, blockHeight, lineHeight, ann);
+    const svgElement = (name, attrs={}) => annotationGeometry.svgElement(name, attrs);
+    const buildAnnotationShape = (svg, ann, geometry, height, lineHeight) => annotationGeometry.buildShape(svg, ann, geometry, height, lineHeight);
+    const clearAnnotationLayers = () => annotationGeometry.clearLayers();
 
 
     async function loadAvailableScripts() {
@@ -387,13 +412,7 @@ const viewport = document.getElementById("viewport");
       });
     }
 
-    function semanticDocumentY(position) {
-      if (!position || !position.prompt) return null;
-      const block = content.querySelector('[data-prompt-id="' + CSS.escape(position.prompt) + '"]');
-      if (!block) return null;
-      const fraction = Math.max(0, Math.min(1, Number(position.fraction) || 0));
-      return block.offsetTop + Math.max(1, block.offsetHeight) * fraction;
-    }
+    const semanticDocumentY = position => semanticPosition.toDocumentY(position);
 
     function ensurePositionLine(kind) {
       let line = kind === 'master' ? masterPositionLine : (kind === 'start' ? cueStartPositionLine : cueEndPositionLine);
@@ -602,8 +621,7 @@ const viewport = document.getElementById("viewport");
     }
 
     function currentReferencePromptId() {
-      const pos = findSemanticPosition();
-      return pos ? pos.prompt : null;
+      return semanticPosition.currentPromptId();
     }
 
     function departmentDefaultColor(dept = activeDepartment) {
@@ -631,79 +649,8 @@ const viewport = document.getElementById("viewport");
       for (const endMarker of content.querySelectorAll(":scope > .cue-end-marker")) endMarker.remove();
     }
 
-    function cueTextNodes(block) {
-      const nodes = [];
-      const walker = document.createTreeWalker(
-        block,
-        NodeFilter.SHOW_TEXT,
-        {
-          acceptNode(node) {
-            const parent = node.parentElement;
-            if (!parent) return NodeFilter.FILTER_REJECT;
-            if (parent.closest(".cue-markers, .cue-connector-layer")) {
-              return NodeFilter.FILTER_REJECT;
-            }
-            return NodeFilter.FILTER_ACCEPT;
-          }
-        }
-      );
-
-      while (walker.nextNode()) nodes.push(walker.currentNode);
-      return nodes;
-    }
-
-    function cueWordEntries(block) {
-      const entries = [];
-      let index = 0;
-
-      for (const node of cueTextNodes(block)) {
-        const text = node.nodeValue || "";
-        const re = /\S+/g;
-        let match;
-        while ((match = re.exec(text)) !== null) {
-          entries.push({
-            index: index++,
-            node,
-            start: match.index,
-            end: match.index + match[0].length,
-            text: match[0]
-          });
-        }
-      }
-
-      return entries;
-    }
-
     function wrapCueTriggerWord(block, cue) {
-      const anchor = cue && cue.anchor;
-      if (!anchor || anchor.type !== "word") return null;
-
-      const targetIndex = Number(anchor.wordIndex);
-      if (!Number.isInteger(targetIndex) || targetIndex < 0) return null;
-
-      const existing = block.querySelector(
-        '.cue-trigger-word[data-word-index="' + targetIndex + '"]'
-      );
-      if (existing) return existing;
-
-      const entry = cueWordEntries(block).find(e => e.index === targetIndex);
-      if (!entry) return null;
-
-      const range = document.createRange();
-      range.setStart(entry.node, entry.start);
-      range.setEnd(entry.node, entry.end);
-
-      const span = document.createElement("span");
-      span.className = "cue-trigger-word";
-      span.dataset.wordIndex = String(targetIndex);
-      span.style.setProperty("--cue-color", cue.color || departmentDefaultColor());
-
-      try {
-        range.surroundContents(span);
-        return span;
-      } catch (_) {
-        return null;
-      }
+      return wrapCueTriggerWordElement(block, cue, cue.color || departmentDefaultColor());
     }
 
     function drawCueConnectors() {
@@ -1280,101 +1227,13 @@ const viewport = document.getElementById("viewport");
     // ------------------------------------------------------------
 
     function annotationCacheKey(script = currentScriptId, dept = activeDepartment) {
-      return script && dept ? script + "|" + dept : "";
+      return annotationStore.key(script, dept);
     }
-
-    function openAnnotationDb() {
-      if (!('indexedDB' in window)) return Promise.reject(new Error('IndexedDB unavailable'));
-      if (annotationDbPromise) return annotationDbPromise;
-
-      annotationDbPromise = new Promise((resolve, reject) => {
-        const req = indexedDB.open('gaosTeleprompter', 1);
-        req.onupgradeneeded = () => {
-          const db = req.result;
-          if (!db.objectStoreNames.contains('annotationDocs')) {
-            db.createObjectStore('annotationDocs', {keyPath:'key'});
-          }
-          if (!db.objectStoreNames.contains('annotationOps')) {
-            const ops = db.createObjectStore('annotationOps', {keyPath:'id', autoIncrement:true});
-            ops.createIndex('byKey', 'key', {unique:false});
-          }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error || new Error('IndexedDB error'));
-      });
-      return annotationDbPromise;
-    }
-
-    async function annotationDbGetDoc(key) {
-      if (!key) return null;
-      try {
-        const db = await openAnnotationDb();
-        return await new Promise((resolve, reject) => {
-          const tx = db.transaction('annotationDocs', 'readonly');
-          const req = tx.objectStore('annotationDocs').get(key);
-          req.onsuccess = () => resolve(req.result || null);
-          req.onerror = () => reject(req.error);
-        });
-      } catch (_) { return null; }
-    }
-
-    async function annotationDbPutDoc(script, dept, revision, annotations) {
-      const key = annotationCacheKey(script, dept);
-      if (!key) return;
-      try {
-        const db = await openAnnotationDb();
-        await new Promise((resolve, reject) => {
-          const tx = db.transaction('annotationDocs', 'readwrite');
-          tx.objectStore('annotationDocs').put({
-            key, script, department:dept, revision:Number(revision)||0,
-            annotations:Array.isArray(annotations) ? annotations : [],
-            savedAt:Date.now()
-          });
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => reject(tx.error);
-        });
-      } catch (_) {}
-    }
-
-    async function annotationDbAddOp(op) {
-      try {
-        const db = await openAnnotationDb();
-        return await new Promise((resolve, reject) => {
-          const tx = db.transaction('annotationOps', 'readwrite');
-          const req = tx.objectStore('annotationOps').add(op);
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => reject(req.error);
-        });
-      } catch (_) { return null; }
-    }
-
-    async function annotationDbDeleteOp(id) {
-      if (id === null || id === undefined) return;
-      try {
-        const db = await openAnnotationDb();
-        await new Promise((resolve, reject) => {
-          const tx = db.transaction('annotationOps', 'readwrite');
-          tx.objectStore('annotationOps').delete(id);
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => reject(tx.error);
-        });
-      } catch (_) {}
-    }
-
-    async function annotationDbOpsFor(key) {
-      if (!key) return [];
-      try {
-        const db = await openAnnotationDb();
-        return await new Promise((resolve, reject) => {
-          const tx = db.transaction('annotationOps', 'readonly');
-          const store = tx.objectStore('annotationOps');
-          const index = store.index('byKey');
-          const req = index.getAll(IDBKeyRange.only(key));
-          req.onsuccess = () => resolve(req.result || []);
-          req.onerror = () => reject(req.error);
-        });
-      } catch (_) { return []; }
-    }
+    const annotationDbGetDoc = key => annotationStore.getDoc(key);
+    const annotationDbPutDoc = (script, dept, revision, annotations) => annotationStore.putDoc(script, dept, revision, annotations);
+    const annotationDbAddOp = op => annotationStore.addOp(op);
+    const annotationDbDeleteOp = id => annotationStore.deleteOp(id);
+    const annotationDbOpsFor = key => annotationStore.opsFor(key);
 
     async function updateAnnotationSyncLabel() {
       if (!activeDepartment || !currentScriptId) {
@@ -1386,161 +1245,6 @@ const viewport = document.getElementById("viewport");
       else if (annotationSyncDebounceTimer !== null) annotationSyncStatus.textContent = 'saving…';
       else if (pending.length) annotationSyncStatus.textContent = navigator.onLine ? (pending.length + ' pending') : ('offline · ' + pending.length);
       else annotationSyncStatus.textContent = navigator.onLine ? 'saved' : 'offline';
-    }
-
-    function currentScriptFontPx() {
-      const px = parseFloat(getComputedStyle(content).fontSize);
-      return Number.isFinite(px) ? px : (parseFloat(fontSizeInput.value) || 42);
-    }
-
-    function annotationStrokeWidth(ann) {
-      const ref = Math.max(12, Number(ann.fontPx) || 42);
-      const scale = Math.max(.65, Math.min(2.5, currentScriptFontPx() / ref));
-      return Math.max(.75, Math.min(18, (Number(ann.width) || 3) * scale));
-    }
-
-    function clearAnnotationLayers() {
-      for (const layer of content.querySelectorAll('.annotation-layer')) layer.remove();
-      for (const block of content.querySelectorAll('.prompt-with-annotations')) {
-        block.classList.remove('prompt-with-annotations');
-      }
-    }
-
-    function svgElement(name, attrs = {}) {
-      const el = document.createElementNS('http://www.w3.org/2000/svg', name);
-      for (const [k,v] of Object.entries(attrs)) el.setAttribute(k, String(v));
-      return el;
-    }
-
-    // X coordinates are relative to the area left after applying the optional
-    // annotation margin. Existing script/cue padding is deliberately excluded
-    // so enabling this feature with no margin does not move saved annotations.
-    // A controlled negative/greater-than-one range represents margin drawing.
-    // Vertical coordinates are stored in text line-height units so wrapping the
-    // same prompt onto extra lines on a phone does not stretch the drawing.
-    const ANNOTATION_X_MIN = -2;
-    const ANNOTATION_X_MAX = 3;
-    const ANNOTATION_Y_MIN = -10;
-    const ANNOTATION_Y_MAX = 50;
-
-    function promptLineHeightPx(block) {
-      if (!block) return Math.max(1, currentScriptFontPx() * 1.4);
-      const style = getComputedStyle(block);
-      const parsed = parseFloat(style.lineHeight);
-      if (Number.isFinite(parsed) && parsed > 0) return parsed;
-      const font = parseFloat(style.fontSize);
-      return Math.max(1, (Number.isFinite(font) ? font : currentScriptFontPx()) * 1.4);
-    }
-
-    function promptHorizontalGeometry(block) {
-      const margin = departmentMarginSetting();
-      const contentStyle = getComputedStyle(content);
-      const contentWidth = Math.max(1,
-        content.clientWidth -
-        (parseFloat(contentStyle.paddingLeft) || 0) -
-        (parseFloat(contentStyle.paddingRight) || 0));
-      const marginPx = activeDepartment && margin.side !== "none"
-        ? contentWidth * margin.width / 100
-        : 0;
-      return {
-        offset: margin.side === "left" ? marginPx : 0,
-        width: Math.max(1, block.clientWidth - marginPx)
-      };
-    }
-
-    function annotationPointToPx(point, geometry, blockHeight, lineHeight, ann) {
-      const xUnit = Math.max(ANNOTATION_X_MIN,
-        Math.min(ANNOTATION_X_MAX, Number(point[0]) || 0));
-      const x = geometry.offset + xUnit * geometry.width;
-      const yUnit = Math.max(ANNOTATION_Y_MIN, Math.min(ANNOTATION_Y_MAX, Number(point[1]) || 0));
-
-      // v6 annotations explicitly use line-height coordinates. Older saved
-      // annotations have no coordMode; interpreting their Y value in line
-      // units avoids the severe vertical stretching that occurred when a
-      // desktop line wrapped into several phone lines.
-      const useBlockHeight = ann && ann.coordMode === 'block';
-      const yScale = useBlockHeight ? blockHeight : lineHeight;
-      return [x, yUnit * yScale];
-    }
-
-    function buildAnnotationShape(svg, ann, geometry, height, lineHeight) {
-      const color = /^#[0-9a-f]{6}$/i.test(ann.color || '') ? ann.color : departmentDefaultColor();
-      const sw = annotationStrokeWidth(ann);
-      let shape = null;
-
-      if (ann.type === 'stroke' && Array.isArray(ann.points) && ann.points.length >= 2) {
-        const pts = ann.points.map(p => annotationPointToPx(p, geometry, height, lineHeight, ann));
-        const pressures = Array.isArray(ann.pressures) ? ann.pressures : null;
-        if (pressures && pressures.length === pts.length) {
-          const group = svgElement('g');
-          for (let i = 1; i < pts.length; i++) {
-            const p = Math.max(.05, Math.min(1, Number(pressures[i]) || .5));
-            const prev = Math.max(.05, Math.min(1, Number(pressures[i-1]) || .5));
-            const pressureScale = .35 + ((p + prev) * .5) * 1.3;
-            const seg = svgElement('line', {
-              x1:pts[i-1][0], y1:pts[i-1][1], x2:pts[i][0], y2:pts[i][1],
-              stroke:color, 'stroke-width':Math.max(.6, sw * pressureScale)
-            });
-            seg.classList.add('annotation-shape');
-            seg.dataset.annotationId = ann.id || '';
-            group.appendChild(seg);
-          }
-          shape = group;
-        } else {
-          const d = pts.map((p,i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
-          shape = svgElement('path', {d, stroke:color, 'stroke-width':sw, fill:'none'});
-        }
-      } else if (ann.type === 'arrow' && ann.from && ann.to) {
-        const [x1,y1] = annotationPointToPx(ann.from, geometry, height, lineHeight, ann);
-        const [x2,y2] = annotationPointToPx(ann.to, geometry, height, lineHeight, ann);
-        const group = svgElement('g');
-        const line = svgElement('line', {x1,y1,x2,y2,stroke:color,'stroke-width':sw});
-        line.classList.add('annotation-shape');
-        line.dataset.annotationId = ann.id || '';
-        group.appendChild(line);
-        const angle = Math.atan2(y2-y1, x2-x1);
-        const size = Math.max(8, sw * 4.2);
-        const a1 = angle + Math.PI * .82;
-        const a2 = angle - Math.PI * .82;
-        const poly = svgElement('polygon', {
-          points: `${x2},${y2} ${x2+Math.cos(a1)*size},${y2+Math.sin(a1)*size} ${x2+Math.cos(a2)*size},${y2+Math.sin(a2)*size}`,
-          fill:color, stroke:color, 'stroke-width':Math.max(1,sw*.5)
-        });
-        poly.classList.add('annotation-shape');
-        poly.dataset.annotationId = ann.id || '';
-        group.appendChild(poly);
-        group.dataset.annotationId = ann.id || '';
-        return group;
-      } else if (ann.type === 'ellipse' && ann.from && ann.to) {
-        const [x1,y1] = annotationPointToPx(ann.from, geometry, height, lineHeight, ann);
-        const [x2,y2] = annotationPointToPx(ann.to, geometry, height, lineHeight, ann);
-        shape = svgElement('ellipse', {
-          cx:(x1+x2)/2, cy:(y1+y2)/2,
-          rx:Math.max(1,Math.abs(x2-x1)/2), ry:Math.max(1,Math.abs(y2-y1)/2),
-          stroke:color, 'stroke-width':sw, fill:'none'
-        });
-      } else if (ann.type === 'text' && ann.at && ann.text) {
-        const [x,y] = annotationPointToPx(ann.at, geometry, height, lineHeight, ann);
-        const refFont = Math.max(12, Number(ann.fontPx) || 42);
-        const textScale = Math.max(.65, Math.min(2.5, currentScriptFontPx() / refFont));
-        shape = svgElement('text', {
-          x, y,
-          'font-size':Math.max(12, refFont * .55 * textScale),
-          'dominant-baseline':'hanging'
-        });
-        shape.classList.add('annotation-text');
-        shape.style.fill = color;
-        shape.style.color = color;
-        shape.textContent = ann.text;
-      }
-
-      if (shape) {
-        // Do not give SVG text the generic annotation-shape class:
-        // that class has fill:none for paths/ellipses and made text invisible.
-        if (ann.type !== 'text') shape.classList.add('annotation-shape');
-        shape.dataset.annotationId = ann.id || '';
-      }
-      return shape;
     }
 
     function renderAnnotations() {
@@ -1955,13 +1659,10 @@ const viewport = document.getElementById("viewport");
       const lineHeight = promptLineHeightPx(block);
       const geometry = promptHorizontalGeometry(block);
 
-      return [
-        Math.max(ANNOTATION_X_MIN,
-          Math.min(ANNOTATION_X_MAX,
-            (clientX - rect.left - geometry.offset) / geometry.width)),
-        Math.max(ANNOTATION_Y_MIN,
-          Math.min(ANNOTATION_Y_MAX, (clientY - rect.top) / lineHeight))
-      ];
+      return annotationGeometry.normalizePoint(
+        (clientX - rect.left - geometry.offset) / geometry.width,
+        (clientY - rect.top) / lineHeight
+      );
     }
 
     function promptBlockAtPoint(clientX, clientY) {
@@ -2449,61 +2150,9 @@ const viewport = document.getElementById("viewport");
       return SSE_ENDPOINT + "?room=" + encodeURIComponent(SYNC_ROOM);
     }
 
-    function findSemanticPosition() {
-      const blocks = promptBlocks();
-      if (!blocks.length) return null;
+    const findSemanticPosition = () => semanticPosition.capture();
+    const targetScrollForState = state => semanticPosition.toScrollTop(state);
 
-      const referenceY = viewport.scrollTop + viewport.clientHeight * REFERENCE_LINE_FRACTION;
-      let chosen = blocks[0];
-
-      for (const block of blocks) {
-        const top = block.offsetTop;
-        const bottom = top + Math.max(1, block.offsetHeight);
-        if (referenceY >= top && referenceY <= bottom) {
-          chosen = block;
-          break;
-        }
-        if (top <= referenceY) chosen = block;
-        else break;
-      }
-
-      const top = chosen.offsetTop;
-      const height = Math.max(1, chosen.offsetHeight);
-      const fraction = Math.max(0, Math.min(1, (referenceY - top) / height));
-
-      const prompt = chosen.dataset.promptId;
-      if (!prompt || !Number.isFinite(fraction)) return null;
-      return { prompt, fraction };
-    }
-
-    function targetScrollForState(state) {
-      if (!state || !state.prompt) return null;
-
-      const block = content.querySelector('[data-prompt-id="' + CSS.escape(state.prompt) + '"]');
-      if (!block) return null;
-
-      const rawFraction = Number(state.fraction);
-      if (!Number.isFinite(rawFraction) || rawFraction < 0 || rawFraction > 1) return null;
-      const fraction = Math.max(0, Math.min(1, rawFraction));
-      const referenceY = block.offsetTop + block.offsetHeight * fraction;
-
-      return referenceY - viewport.clientHeight * REFERENCE_LINE_FRACTION;
-    }
-
-    function stateAgeAtDeliveryMs(state) {
-      if (!state) return null;
-      if (typeof state.serverTime !== "number" ||
-          typeof state.deliveryServerTime !== "number" ||
-          !Number.isFinite(state.serverTime) ||
-          !Number.isFinite(state.deliveryServerTime) ||
-          state.serverTime <= 0 ||
-          state.deliveryServerTime < state.serverTime) {
-        return null;
-      }
-      const stateServerTimeMs = state.serverTime * 1000;
-      const deliveryServerTimeMs = state.deliveryServerTime * 1000;
-      return Math.max(0, deliveryServerTimeMs - stateServerTimeMs);
-    }
 
     function latestRemoteStateAgeMs() {
       if (!latestRemoteState ||
@@ -2548,22 +2197,6 @@ const viewport = document.getElementById("viewport");
       updateMasterPositionMarker();
     }
 
-    function syncMotionSignature(state) {
-      if (!state) return "";
-
-      const fraction = Number(state.fraction);
-      const stableFraction = Number.isFinite(fraction)
-        ? Math.round(fraction * 10000) / 10000
-        : 0;
-
-      return JSON.stringify([
-        state.script || "",
-        state.prompt || "",
-        stableFraction,
-        state.playing !== false,
-        Number(state.speed) || 0
-      ]);
-    }
 
     function followerPollDelay() {
       const idleFor = performance.now() - lastRemoteMotionAt;
@@ -2631,7 +2264,7 @@ const viewport = document.getElementById("viewport");
         updatedByClient: Date.now()
       };
 
-      const signature = syncMotionSignature(state);
+      const signature = motionSignature(state);
       const now = Date.now();
 
       // When nothing has changed, avoid sending 4 POSTs/second.
