@@ -8,7 +8,7 @@ pipeline, package manager, or database.
 
 `teleprompter.html` owns nearly all client behaviour: display, autoscroll,
 touch navigation, master/follower state, cue rendering/editing, annotations,
-fullscreen, and wake lock.
+fullscreen, wake lock, and browser-generated print/PDF export.
 
 The PHP endpoints are:
 
@@ -17,7 +17,7 @@ The PHP endpoints are:
 | `list_scripts.php` | Return readable entries from the script catalog. |
 | `get_script.php` | Return one allow-listed HTML script fragment. |
 | `teleprompter_sync.php` | Claim master control, write state, and serve polling reads. |
-| `teleprompter_events.php` | Stream state, heartbeats, cue revisions, and annotation revisions over SSE. |
+| `teleprompter_events.php` | Stream state, heartbeats, cue revisions, annotation revisions, and central settings over SSE. |
 | `cue_api.php` | Read and mutate department cue documents and publish revision signals. |
 | `annotation_api.php` | Read and mutate annotation documents and publish revision signals. |
 | `settings_api.php` | Read central department display settings and perform authenticated updates. |
@@ -58,6 +58,11 @@ application does not read annotation data from beneath `scripts/`.
 
 See `settings.md` for the preference keys and the relationship between margins,
 script text, cues, and annotation coordinates.
+
+Print/PDF export has no server-side renderer or generated PDF file. The browser
+opens a separate print document, fetches the allow-listed script plus persisted
+department data through the existing read endpoints, lays it out as A4 sheets,
+and delegates printing or PDF creation to the browser. See `export.md`.
 
 ## Credential configuration
 

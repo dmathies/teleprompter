@@ -83,6 +83,14 @@ document revision, and updates
 A client refetches a newer matching document only when it has no pending local
 operations; otherwise it keeps its optimistic document and drains its queue.
 
+## Print export
+
+The browser print view re-renders persisted strokes, pressure-sensitive paths,
+arrows, ellipses, and text using the print font and the selected department's
+central margin. Export fetches the current server document directly; annotations
+that exist only in IndexedDB or the offline mutation queue are not included
+until they have synchronized successfully. See `export.md`.
+
 ## Change rules
 
 - Preserve IDs and semantic anchors across schema migrations.

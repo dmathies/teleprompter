@@ -31,7 +31,8 @@ cues, and annotations all refer to them.
 
 Useful semantic metadata includes:
 
-- `data-page`: source page label;
+- `data-page`: source page label; print export starts a new A4 sheet when this
+  value changes and repeats it in the footer;
 - `data-act`: act label;
 - `data-scene`: optional scene context.
 
@@ -60,5 +61,11 @@ on narrow screens; current fragments use a 700-pixel breakpoint.
 - Keep markup valid and avoid duplicate prompt IDs.
 - Ensure every visible semantic section, including headings, lyrics, and stage
   directions, has an anchor if master/follower positioning may land there.
+- Keep every block that must appear in print/PDF export as a direct child of the
+  fragment; export copies only top-level `data-prompt-id` elements.
+- Give every exported block a `data-page` value when reliable source-page
+  grouping and footer labels are required.
+- Do not rely on fragment `<style>` rules for print appearance. Export uses its
+  own fixed stylesheet and understands the recognized structures listed above.
 - Test with stage directions both hidden and shown, multiple font sizes, and
   desktop/phone/tablet widths.

@@ -1,0 +1,821 @@
+html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: black;
+      color: white;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+
+    #toolbar {
+      position: fixed;
+      top: 34px;
+      left: 0;
+      right: 0;
+      min-height: 56px;
+      background: #111;
+      border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: calc(8px + env(safe-area-inset-top)) 12px 8px 12px;
+      box-sizing: border-box;
+      z-index: 1000;
+    }
+
+    #toolbar button,
+    #toolbar input,
+    #toolbar label,
+    #toolbar div {
+      font-size: 16px;
+    }
+
+    #status {
+      color: #aaa;
+      margin-left: 8px;
+      min-width: 220px;
+    }
+
+    #viewport {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
+      background: black;
+      cursor: default;
+      touch-action: none;
+      user-select: none;
+    }
+
+    #content {
+      box-sizing: border-box;
+      padding: 4px;
+      font-size: 42px;
+      line-height: 1.4;
+      --annotation-margin-left: 0px;
+      --annotation-margin-right: 0px;
+    }
+
+    /* Annotation margins indent semantic script blocks while cue overlays keep
+       the full available width. The per-block variables also provide the
+       coordinate origin used by annotation rendering. */
+    #content > [data-prompt-id] {
+      --script-block-left-inset: var(--annotation-margin-left);
+      --script-block-right-inset: var(--annotation-margin-right);
+      box-sizing: border-box;
+      padding-left: var(--script-block-left-inset);
+      padding-right: var(--script-block-right-inset);
+    }
+
+    .cue {
+      margin-bottom: 1em;
+    }
+
+    .character {
+      color: yellow;
+      font-weight: bold;
+    }
+
+    .dialog {
+      color: white;
+    }
+
+    .lyrics-block {
+      margin-top: .1em;
+      margin-bottom: .1em;
+    }
+
+    .lyrics-speaker {
+      color: yellow;
+      font-weight: bold;
+      display: block;
+      text-align: center;
+      margin-bottom: 0.3em;
+    }
+
+    .lyrics {
+      color: cyan;
+      margin-left: .5em;
+    }
+
+    .sync-control { display:flex; align-items:center; gap:6px; }
+    #modeSelect, #roomInput, #sceneSelect, #songSelect {
+      background:#222; color:white; border:1px solid #555; border-radius:4px;
+      padding:5px 7px; box-sizing:border-box;
+    }
+    #sceneSelect { width:105px; }
+    #songSelect { width:190px; }
+    #syncStatus { color:#aaa; min-width:170px; }
+    #syncStatus.ok { color:#8f8; }
+    #syncStatus.warn { color:#fc8; }
+    #syncStatus.error { color:#f88; }
+    #masterHealthStatus {
+      color: #aaa;
+      white-space: nowrap;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+    #masterHealthStatus .health-ok { color:#8f8; }
+    #masterHealthStatus .health-warn { color:#fc8; }
+    #masterHealthStatus .health-error { color:#f88; font-weight:700; }
+    #masterHealthStatus .health-idle { color:#aaa; }
+
+    /* Master unattended-autoscroll warning. This is a pure visual overlay:
+       no layout change and it never intercepts mouse/touch input. */
+    #masterIdleBorder {
+      position: fixed;
+      inset: 0;
+      z-index: 20000;
+      pointer-events: none;
+      opacity: 0;
+      --idle-border-rgb: 255, 220, 0;
+      --idle-border-alpha: 0;
+      background:
+        linear-gradient(to bottom,
+          rgba(var(--idle-border-rgb), var(--idle-border-alpha)) 0,
+          rgba(var(--idle-border-rgb), 0) 5mm) top / 100% 5mm no-repeat,
+        linear-gradient(to top,
+          rgba(var(--idle-border-rgb), var(--idle-border-alpha)) 0,
+          rgba(var(--idle-border-rgb), 0) 5mm) bottom / 100% 5mm no-repeat,
+        linear-gradient(to right,
+          rgba(var(--idle-border-rgb), var(--idle-border-alpha)) 0,
+          rgba(var(--idle-border-rgb), 0) 5mm) left / 5mm 100% no-repeat,
+        linear-gradient(to left,
+          rgba(var(--idle-border-rgb), var(--idle-border-alpha)) 0,
+          rgba(var(--idle-border-rgb), 0) 5mm) right / 5mm 100% no-repeat;
+      transition: opacity .18s linear;
+    }
+
+    #rejoinBtn[disabled] { opacity:.45; }
+    .scene-heading { margin-top:1.2em; margin-bottom:.65em; text-align:center; font-size:1.12em; }
+    .song-heading { margin-top:.9em; margin-bottom:.45em; text-align:center; }
+
+
+    .icon-btn {
+      min-width: 40px;
+      height: 38px;
+      padding: 0 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px !important;
+      line-height: 1;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .icon-btn:disabled {
+      opacity: .38;
+      cursor: default;
+    }
+
+    .compact-label {
+      color: #bbb;
+      font-size: 13px !important;
+    }
+
+    .password-panel {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 6px;
+      border: 1px solid #444;
+      border-radius: 6px;
+      background: #181818;
+    }
+
+    /* Explicit toolbar display rules can override the browser's default
+       [hidden] rule. Force hidden controls to be genuinely absent. */
+    #toolbar [hidden] {
+      display: none !important;
+    }
+
+    .password-panel[hidden] {
+      display: none;
+    }
+
+    #masterPassword {
+      width: 150px;
+      background: #222;
+      color: white;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-size: 15px;
+    }
+
+    #masterBtn.master-active {
+      color: #8f8;
+      border-color: #486;
+      background: #13251a;
+    }
+
+    #syncStatus {
+      white-space: nowrap;
+    }
+
+    @media (max-width: 760px) {
+      #toolbar { gap: 6px; }
+      .icon-btn { min-width: 38px; height: 36px; padding: 0 8px; }
+      #status { min-width: 0; }
+      #syncStatus { min-width: 0; font-size: 13px !important; }
+      #masterHealthStatus { font-size: 12px !important; }
+      #sceneSelect { width: 90px; }
+      #songSelect { width: 135px; }
+      .compact-label { display: none; }
+    }
+
+
+    #toolbar {
+      transition: opacity .28s ease, transform .28s ease;
+    }
+
+    body.toolbar-hidden #toolbar {
+      opacity: 0;
+      transform: translateY(-110%);
+      pointer-events: none;
+    }
+
+
+
+    #scriptSelect,
+    #sceneSelect,
+    #songSelect {
+      height: 38px;
+      padding: 0 8px;
+      border-radius: 6px;
+      background: #222;
+      color: white;
+      border: 1px solid #555;
+      font-size: 15px;
+    }
+
+    #scriptSelect {
+      width: 150px;
+    }
+
+    #sceneSelect {
+      width: 115px;
+    }
+
+    #songSelect {
+      width: 210px;
+    }
+
+    @media (max-width: 760px) {
+      #scriptSelect {
+        width: 125px;
+      }
+
+      #sceneSelect {
+        width: 96px;
+      }
+
+      #songSelect {
+        width: 150px;
+      }
+    }
+
+
+
+    /* Department cue layer */
+    #deptLabel {
+      font-weight: 700;
+      color: #ddd;
+      min-width: 28px;
+      text-align: right;
+    }
+
+    #addCueBtn[hidden] { display: none; }
+
+    .prompt-with-cues {
+      position: relative;
+    }
+
+    #content > .prompt-with-cues {
+      --script-block-left-inset: calc(var(--annotation-margin-left) + 10px);
+    }
+
+    #content > [data-prompt-id] > .cue-markers {
+      box-sizing: border-box;
+      width: calc(100% + var(--script-block-left-inset) + var(--script-block-right-inset));
+      margin-left: calc(0px - var(--script-block-left-inset));
+      margin-right: calc(0px - var(--script-block-right-inset));
+    }
+
+    .cue-range-line {
+      position: absolute;
+      left: 0;
+      width: 5px;
+      pointer-events: none;
+      z-index: 1;
+      background: var(--cue-color, #ffd000);
+    }
+
+    .cue-markers {
+      display: block;
+      margin: 0 0 5px 0;
+      font-size: .42em;
+      line-height: 1.15;
+      position: relative;
+      z-index: 2;
+    }
+
+    .cue-marker {
+      display: flex;
+      width: max-content;
+      align-items: center;
+      gap: 6px;
+      max-width: 100%;
+      margin: 0 0 4px 0;
+      padding: 4px 7px;
+      border: 2px solid var(--cue-color, #ffd000);
+      border-radius: 5px;
+      background: rgba(0,0,0,.88);
+      color: white;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .cue-marker .cue-number { color: var(--cue-color, #ffd000); }
+    .cue-marker.cue-editable { cursor: pointer; }
+
+    #cueEditorPanel {
+      position: fixed;
+      z-index: 10000;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(520px, calc(100vw - 24px));
+      box-sizing: border-box;
+      padding: 14px;
+      border: 1px solid #666;
+      border-radius: 9px;
+      background: #151515;
+      box-shadow: 0 10px 40px rgba(0,0,0,.75);
+      color: white;
+      font-size: 16px;
+    }
+
+    #cueEditorPanel[hidden] { display: none; }
+    #cueEditorPanel h3 { margin: 0 0 10px; font-size: 18px; }
+    #cueEditorPanel .cue-form-row { display:flex; gap:8px; align-items:center; margin:8px 0; }
+    #cueEditorPanel label { min-width: 90px; color:#bbb; }
+    #cueEditorPanel input[type="text"] {
+      flex:1; min-width:0; background:#222; color:white; border:1px solid #555;
+      border-radius:4px; padding:7px 8px; font-size:16px;
+    }
+    #cueEditorPanel input[type="color"] { width:52px; height:34px; padding:1px; background:#222; border:1px solid #555; }
+    #cueEditorActions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap; }
+    #cueAnchorInfo { color:#aaa; font-family:monospace; font-size:13px; overflow-wrap:anywhere; }
+    #cueEditorError { color:#f88; min-height:1.2em; margin-top:6px; }
+
+    #settingsBackdrop {
+      position:fixed;
+      inset:0;
+      z-index:10025;
+      background:rgba(0,0,0,.5);
+      pointer-events:auto;
+      touch-action:none;
+    }
+    #settingsBackdrop[hidden] { display:none; }
+
+    #settingsPanel {
+      position: fixed;
+      z-index: 10030;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(480px, calc(100vw - 24px));
+      box-sizing: border-box;
+      padding: 16px;
+      border: 1px solid #666;
+      border-radius: 9px;
+      background: #151515;
+      box-shadow: 0 10px 40px rgba(0,0,0,.78);
+      color: white;
+      font-size: 16px;
+      pointer-events:auto;
+      touch-action:manipulation;
+    }
+    #settingsPanel[hidden] { display:none; }
+    #settingsPanel h3 { margin:0 0 12px; font-size:19px; }
+    #settingsPanel .settings-row {
+      display:grid;
+      grid-template-columns: minmax(130px, 1fr) minmax(150px, 1.4fr);
+      gap:12px;
+      align-items:center;
+      margin:12px 0;
+    }
+    #settingsPanel label { color:#ccc; }
+    #settingsPanel select,
+    #settingsPanel input[type="range"] {
+      width:100%;
+      box-sizing:border-box;
+    }
+    #settingsPanel select {
+      height:36px;
+      padding:0 8px;
+      border:1px solid #555;
+      border-radius:5px;
+      background:#222;
+      color:white;
+    }
+    #settingsMarginControls[aria-disabled="true"] { opacity:.45; }
+    #settingsMarginControls[aria-disabled="true"] select,
+    #settingsMarginControls[aria-disabled="true"] input { pointer-events:none; }
+    #annotationMarginWidthValue { color:#aaa; font-variant-numeric:tabular-nums; }
+    #settingsSaveStatus { min-height:1.2em; color:#aaa; font-size:13px; }
+    #settingsSaveStatus.error { color:#f88; }
+    #settingsActions { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; }
+    #settingsSaveStatus { flex:1; }
+    #settingsDoneBtn { min-width:90px; min-height:38px; }
+
+    #exportBackdrop {
+      position:fixed; inset:0; z-index:10035; background:rgba(0,0,0,.55);
+      pointer-events:auto; touch-action:none;
+    }
+    #exportBackdrop[hidden], #exportPanel[hidden] { display:none; }
+    #exportPanel {
+      position:fixed; z-index:10040; left:50%; top:50%; transform:translate(-50%,-50%);
+      width:min(520px,calc(100vw - 24px)); box-sizing:border-box; padding:16px;
+      border:1px solid #666; border-radius:9px; background:#151515;
+      box-shadow:0 10px 40px rgba(0,0,0,.78); color:white; font-size:16px;
+    }
+    #exportPanel h3 { margin:0 0 12px; font-size:19px; }
+    #exportPanel .export-row {
+      display:grid; grid-template-columns:minmax(150px,1fr) minmax(170px,1.3fr);
+      gap:12px; align-items:center; margin:12px 0;
+    }
+    #exportPanel label { color:#ccc; }
+    #exportPanel select {
+      width:100%; height:36px; padding:0 8px; box-sizing:border-box;
+      border:1px solid #555; border-radius:5px; background:#222; color:white;
+    }
+    #exportPanel input[type="checkbox"] { transform:scale(1.15); transform-origin:left center; }
+    #exportStatus { min-height:1.2em; color:#aaa; font-size:13px; flex:1; }
+    #exportStatus.error { color:#f88; }
+    #exportActions { display:flex; align-items:center; gap:10px; margin-top:14px; }
+    #exportActions .spacer { flex:1; }
+
+    @media (max-width:520px) {
+      #settingsPanel .settings-row, #exportPanel .export-row { grid-template-columns:1fr; gap:5px; }
+    }
+
+
+    .cue-trigger-word {
+      position: relative;
+      z-index: 2;
+      padding: 0 .08em;
+      margin-left: .04em;
+      background: color-mix(in srgb, var(--cue-color, #ffd000) 58%, transparent);
+      border-left: 2px solid var(--cue-color, currentColor);
+      border-radius: 1px 2px 2px 1px;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+
+    .cue-connector-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .cue-connector-line {
+      stroke-width: 2;
+      opacity: .42;
+      vector-effect: non-scaling-stroke;
+    }
+
+    body.cue-word-pick {
+      cursor: crosshair;
+    }
+
+    body.cue-word-pick #content [data-prompt-id] {
+      cursor: crosshair;
+    }
+
+    #cueWordInfo {
+      color: #bbb;
+      font-family: monospace;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+
+
+    /* Vector script annotations */
+    #annotateBtn[hidden], #annotationTools[hidden] { display: none !important; }
+
+    .prompt-with-annotations {
+      position: relative;
+    }
+
+    .annotation-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible !important;
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    .annotation-shape {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .annotation-text {
+      font-family: Arial, sans-serif;
+      font-weight: 800;
+      paint-order: stroke;
+      stroke: rgba(0,0,0,.9);
+      stroke-width: 3px;
+      stroke-linejoin: round;
+    }
+
+    body.annotation-mode #viewport { cursor: crosshair; }
+    body.annotation-mode #content [data-prompt-id] { cursor: crosshair; }
+    body.annotation-erase .annotation-layer { pointer-events: auto; }
+    body.annotation-erase .annotation-shape,
+    body.annotation-erase .annotation-text { pointer-events: all; cursor: not-allowed; }
+
+    #annotationTools {
+      position: fixed;
+      right: 34px;
+      top: calc(64px + env(safe-area-inset-top));
+      z-index: 10020;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px;
+      border: 1px solid #555;
+      border-radius: 8px;
+      background: rgba(18,18,18,.96);
+      box-shadow: 0 5px 24px rgba(0,0,0,.65);
+      font-size: 14px;
+      flex-wrap: wrap;
+      max-width: min(700px, calc(100vw - 48px));
+    }
+
+    #annotationTools button {
+      min-width: 38px;
+      min-height: 36px;
+      font-size: 19px;
+      border-radius: 5px;
+      border: 1px solid #555;
+      background: #222;
+      color: #fff;
+    }
+
+    #annotationTools button.active {
+      outline: 2px solid #fff;
+      background: #444;
+    }
+
+    #annotationTools input[type="color"] {
+      width: 42px;
+      height: 34px;
+      padding: 1px;
+      background: #222;
+      border: 1px solid #555;
+    }
+
+    #annotationWidth { width: 90px; }
+    #annotationSyncStatus { color:#aaa; min-width:75px; white-space:nowrap; }
+
+    #speedControl {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #speedControl[hidden] {
+      display: none;
+    }
+
+
+    /* Persistent script context */
+    #contextHeader {
+      position: fixed;
+      z-index: 1500;
+      top: 0;
+      left: 0;
+      right: 18px;
+      height: 34px;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      padding: 0 10px;
+      background: rgba(10,10,10,.96);
+      border-bottom: 1px solid #444;
+      color: #ddd;
+      font: 600 14px/1.1 Arial, sans-serif;
+      pointer-events: none;
+    }
+
+    #headerScene {
+      color: white;
+      max-width: 48vw;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    /* Strong warning if a follower has locally left the master position. */
+    body.follow-paused #toolbar {
+      box-shadow: inset 0 -4px 0 #d22, 0 5px 14px rgba(0,0,0,.6);
+    }
+
+    body.follow-paused #syncStatus {
+      color: #fff !important;
+      background: #a00;
+      border-radius: 4px;
+      padding: 4px 7px;
+      font-weight: 800;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    /* Whole-script overview rail, similar to an IDE overview/minimap gutter. */
+    #overviewRail {
+      position: fixed;
+      z-index: 1400;
+      top: 34px;
+      right: 0;
+      bottom: 0;
+      width: 18px;
+      background: rgba(30,30,30,.92);
+      border-left: 1px solid #555;
+      cursor: pointer;
+      touch-action: none;
+    }
+
+    body.overview-rail-left #overviewRail {
+      left: 0;
+      right: auto;
+      border-left: 0;
+      border-right: 1px solid #555;
+    }
+
+    #overviewMarkers {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .overview-mark {
+      position: absolute;
+      right: 1px;
+      transform: translateY(-50%);
+      border-radius: 2px;
+      min-height: 2px;
+    }
+
+    .overview-mark.act {
+      left: 1px;
+      height: 4px;
+      background: #fff;
+    }
+
+    .overview-mark.scene {
+      left: 6px;
+      height: 2px;
+      background: #aaa;
+    }
+
+    .overview-mark.cue {
+      left: 2px;
+      height: 4px;
+    }
+
+    .overview-mark.annotation {
+      left: 10px;
+      right: 1px;
+      height: 5px;
+      border-radius: 50%;
+    }
+
+    #overviewViewportIndicator {
+      position: absolute;
+      left: 0;
+      right: 0;
+      min-height: 10px;
+      box-sizing: border-box;
+      border: 1px solid rgba(255,255,255,.95);
+      background: rgba(255,255,255,.14);
+      pointer-events: none;
+    }
+
+    /* Leave the overview rail unobscured without changing scroll geometry. */
+    #viewport {
+      right: 18px;
+    }
+
+    body.overview-rail-left #viewport {
+      left: 18px;
+      right: 0;
+    }
+
+    body.overview-rail-left #contextHeader {
+      left: 18px;
+      right: 0;
+    }
+
+    /* Live-show cue treatment: full-width, unmistakable department strip. */
+    .cue-marker {
+      width: 100% !important;
+      box-sizing: border-box;
+      border: 0 !important;
+      border-radius: 4px;
+      padding: 7px 10px !important;
+      background: var(--cue-color, #ffd000) !important;
+      color: var(--cue-text-color, #000) !important;
+      font-weight: 800;
+    }
+
+    .cue-marker .cue-number {
+      color: inherit !important;
+      font-weight: 900;
+      min-width: 4.5em;
+    }
+
+    .cue-marker.cue-editable {
+      outline: 2px solid rgba(255,255,255,.45);
+      outline-offset: -2px;
+    }
+
+
+    /* Stage directions, cue editing positions, and remote master position */
+    #stageDirectionsBtn.active {
+      outline: 2px solid #9ad0ff;
+      background: #245477;
+    }
+    #content .stage-direction.stage-direction-forced,
+    #content .stage-inline.stage-direction-forced {
+      display: block !important;
+    }
+    #content .stage-inline.stage-direction-forced { display: inline !important; }
+
+    #masterPositionLine, #cueStartPositionLine, #cueEndPositionLine {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 11px;
+      pointer-events: none;
+      z-index: 15;
+      transform: translateY(-1px);
+    }
+    #masterPositionLine {
+      background: linear-gradient(to bottom, rgba(55,155,255,.95) 0, rgba(55,155,255,.45) 2px, rgba(55,155,255,0) 10px);
+    }
+    #cueStartPositionLine {
+      background: linear-gradient(to bottom, rgba(255,208,0,.95) 0, rgba(255,208,0,.35) 2px, rgba(255,208,0,0) 10px);
+    }
+    #cueEndPositionLine {
+      background: linear-gradient(to bottom, rgba(190,190,190,.95) 0, rgba(190,190,190,.35) 2px, rgba(190,190,190,0) 10px);
+    }
+    #masterPositionLine[hidden], #cueStartPositionLine[hidden], #cueEndPositionLine[hidden] { display:none; }
+
+    .overview-mark.master-position {
+      left: 0; right: 0; height: 3px;
+      background: #379bff;
+      box-shadow: 0 0 4px rgba(55,155,255,.9);
+      z-index: 8;
+    }
+    .overview-mark.cue-end {
+      left: 7px; right: 1px; height: 2px;
+      opacity: .8;
+    }
+    .cue-end-marker {
+      display: block;
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 0;
+      margin: 0;
+      border-top: 2px dashed var(--cue-color, #ffd000);
+      color: var(--cue-color, #ffd000);
+      font: 700 12px/1.2 Arial,sans-serif;
+      opacity: .85;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .cue-end-marker span {
+      background:#000; padding:0 5px; position:relative; top:-8px;
+    }
+    #cueEndInfo { color:#aaa; font-family:monospace; font-size:13px; overflow-wrap:anywhere; }
+    #cueEditorPanel .cue-form-row.buttons { align-items:flex-start; }

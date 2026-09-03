@@ -15,9 +15,11 @@ Read the focused documentation before changing the corresponding area:
 
 - `docs/architecture.md`
 - `docs/synchronization.md`
+- `docs/cues.md`
 - `docs/annotations.md`
 - `docs/script-format.md`
 - `docs/settings.md`
+- `docs/export.md`
 
 ## General working rules
 
@@ -54,10 +56,10 @@ There are three relevant client roles:
   `STG`. A separate department login permits cue and annotation editing but
   does not grant master control.
 
-The overview rail is the narrow position/marker display at the right edge.
-Cues also have inline badges, trigger-word highlighting, connectors, and range
-markers. Do not describe or redesign it as a conventional sidebar without
-checking the current UI.
+The overview rail is the narrow position/marker display at the selected left
+or right edge. Cues also have inline badges, trigger-word highlighting,
+connectors, range markers, and exact-position end markers. Do not describe or
+redesign the rail as a conventional sidebar without checking the current UI.
 
 ## Synchronization
 
@@ -99,6 +101,11 @@ revisions are announced over SSE so matching department followers reload them
 without a page refresh. Preserve existing files or provide a migration when
 changing the schema.
 
+Cue start and optional end anchors contain a semantic prompt ID and fractional
+position within the prompt. Word anchors additionally contain a word index and
+display text. Missing legacy start fractions are treated as zero. See
+`docs/cues.md` before changing cue storage, editing, or rendering.
+
 ## Annotations
 
 Persistent annotation documents live in
@@ -114,6 +121,14 @@ between blocks by using the nearest visible semantic anchor. Remote refreshes
 must not clear visible annotations while awaiting the replacement document.
 See `docs/annotations.md` before changing this area.
 
+## Print/PDF export
+
+The PDF toolbar button builds a separate A4 print view in the browser. It may
+include one department, all departments, or the script alone, with independent
+cue, annotation, and stage-direction choices. Export reads the persisted server
+documents; pending offline annotation operations are not part of the result.
+See `docs/export.md` before changing pagination or print rendering.
+
 ## UI behaviour
 
 - Make live controls difficult to activate accidentally.
@@ -122,6 +137,8 @@ See `docs/annotations.md` before changing this area.
 - Keep a paused follower's controls visible until explicit rejoin.
 - Avoid covering script text unnecessarily.
 - Support touch, mouse, and stylus input where applicable.
+- Modal dialogs must intercept pointer/stylus input even while annotation or
+  cue-word-selection mode is active; interaction must not reach script gestures.
 - Preserve semantic script position across font-size and responsive reflow.
 - Browser display preferences are opened from the gear button. Rail side is a
   browser-local preference. Annotation margin side and width are central,
@@ -156,6 +173,9 @@ After changing synchronization, test at minimum:
 9. Font-size changes on both master and follower.
 10. Department cue/annotation display, offline annotation queueing, and revision
     refresh after reconnect.
+11. Print export with script-only, one-department, and all-department
+    selections; verify source page breaks, long-page overflow, cues, annotation
+    margins, and browser print preview.
 
 For UI changes, also check desktop, phone, and tablet layouts. The repository
 currently provides manual SSE and pen diagnostics, not an automated browser

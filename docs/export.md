@@ -1,0 +1,71 @@
+# Print/PDF export
+
+## Overview
+
+The toolbar's PDF button opens an export dialog and then builds a separate A4
+portrait print view in the browser. The application does not generate or store
+a PDF on the server. The operator uses the print view's **Print / Save PDF**
+button and the browser's print dialog to print or save the result.
+
+The export dialog can select:
+
+- all departments, one of FS/LX/SND/STG, or script only;
+- cue markers on or off;
+- annotations on or off;
+- all stage directions, only directions directly anchored by a selected cue
+  start/end, or no stage directions.
+
+The browser must permit the new print-view window. It is opened before data is
+fetched to reduce pop-up-blocker failures, but site pop-ups may still need to be
+allowed.
+
+## Data source and consistency
+
+Export fetches a fresh allow-listed script through `get_script.php`. For every
+selected department it concurrently fetches the public cue, annotation, and
+central-settings documents. It does not export the currently displayed DOM.
+
+Consequently, only server-persisted annotations are included. Optimistic edits
+that exist only in IndexedDB or the offline mutation queue must synchronize
+before export. If any selected department document cannot be loaded, export
+stops instead of silently producing an incomplete marked-up script.
+
+## Pagination
+
+Only top-level elements with `data-prompt-id` are copied from the script
+fragment. A change in `data-page` starts a new A4 sheet, and the source page
+label is printed in the footer. If one source page overflows, additional sheets
+retain the same footer label.
+
+Prompt blocks are kept together where possible. A single block taller than the
+printable body cannot currently be split and may overflow the fixed page body;
+very large blocks should therefore be checked in print preview.
+
+The print stylesheet uses 11.5-point script text, fixed A4 dimensions, and
+browser print CSS. Browser headers and footers should be disabled because the
+application supplies its own source-page footer.
+
+## Markup rendering
+
+Selected cues are recreated as department-coloured badges. Word triggers are
+highlighted, cue ranges use their fractional start/end positions, and an END
+label is attached to the end block.
+
+Annotations are re-rendered as SVG after pagination so their geometry uses the
+final print block dimensions. Strokes, pressure data, arrows, ellipses, and text
+are supported. A single department uses its central annotation margin. For an
+all-department export, the largest selected left margin and largest selected
+right margin are reserved so drawings from each department have room.
+
+## Change and test rules
+
+- Keep export read-only; it must not mutate scripts, cues, annotations, or
+  settings.
+- Continue opening the print window synchronously from the operator gesture.
+- Escape cue text inserted into generated markup.
+- Preserve `data-page`, semantic prompt IDs, cue fractions, annotation
+  coordinate modes, pressure data, and department colours.
+- Test script-only, one-department, and all-department output; each
+  stage-direction mode; cue/annotation toggles; long source pages; a very tall
+  block; two-column lyrics; central left/right margins; pop-up blocking; and
+  actual Chrome/Safari print preview.

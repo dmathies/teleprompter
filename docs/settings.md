@@ -53,6 +53,11 @@ annotations unchanged. Changing the margin moves and reflows annotations with
 their associated text. Coordinates outside the area's 0–1 interval are
 intentionally retained so drawing in the blank margin remains possible.
 
+Print/PDF export fetches these central margins with the selected department
+data. A single-department export uses that department's margin. An
+all-department export reserves the largest selected left and right margins so
+each department's annotations have space.
+
 ## Adding settings
 
 Keep personal display preferences local; use central ignored runtime data for
