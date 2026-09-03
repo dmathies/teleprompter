@@ -35,13 +35,13 @@ but the master writes a heartbeat at least every two seconds while healthy.
 
 ## Transport
 
-`teleprompter_events.php` checks the room state and revision-signal files every
-100 ms. It emits the whole master state when its JSON changes; the sequence
-becomes the SSE event ID. It also emits named `cue-revision` and
-`annotation-revision` events. The endpoint adds `deliveryServerTime` immediately
-before state delivery, sends a named server heartbeat every five seconds, and
-closes normally after five minutes. EventSource reconnects automatically and
-supplies `Last-Event-ID`.
+`teleprompter_events.php` checks the room state, revision-signal files, and
+central department settings every 100 ms. It emits the whole master state when
+its JSON changes; the sequence becomes the SSE event ID. It also emits named
+`cue-revision`, `annotation-revision`, and `department-settings` events. The
+endpoint adds `deliveryServerTime` immediately before state delivery, sends a
+named server heartbeat every five seconds, and closes normally after five
+minutes. EventSource reconnects automatically and supplies `Last-Event-ID`.
 
 If SSE cannot connect or remains disconnected, the browser polls the sync GET
 endpoint while leaving EventSource free to recover. Polling is 250 ms while
@@ -59,6 +59,11 @@ Cue refetches keep existing markers visible until the replacement document has
 loaded and discard out-of-order responses after a script or department change.
 Annotation clients additionally defer remote reloads while local offline
 operations are pending.
+
+Central margin updates increment both the settings document revision and the
+matching department entry revision. SSE broadcasts the document; an open client
+applies only a newer entry for its active department and preserves its semantic
+script position during reflow.
 
 ## Freshness guarantee
 
@@ -109,5 +114,5 @@ Rejoin is always explicit and uses only a still-fresh target.
 - Server timestamps must remain seconds since the Unix epoch; the browser
   converts them to milliseconds.
 - Preserve SSE event names: unnamed state messages, `server-heartbeat`,
-  `cue-revision`, and `annotation-revision`.
+  `cue-revision`, `annotation-revision`, and `department-settings`.
 - Test SSE and polling because either may deliver the same state sequence.

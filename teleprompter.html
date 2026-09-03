@@ -64,6 +64,19 @@
       padding: 4px;
       font-size: 42px;
       line-height: 1.4;
+      --annotation-margin-left: 0px;
+      --annotation-margin-right: 0px;
+    }
+
+    /* Annotation margins indent semantic script blocks while cue overlays keep
+       the full available width. The per-block variables also provide the
+       coordinate origin used by annotation rendering. */
+    #content > [data-prompt-id] {
+      --script-block-left-inset: var(--annotation-margin-left);
+      --script-block-right-inset: var(--annotation-margin-right);
+      box-sizing: border-box;
+      padding-left: var(--script-block-left-inset);
+      padding-right: var(--script-block-right-inset);
     }
 
     .cue {
@@ -289,7 +302,18 @@
 
     .prompt-with-cues {
       position: relative;
-      padding-left: 10px;
+    }
+
+    #content > .prompt-with-cues {
+      --script-block-left-inset: calc(var(--annotation-margin-left) + 10px);
+    }
+
+    #content > [data-prompt-id] > .cue-markers,
+    #content > [data-prompt-id] > .cue-end-marker {
+      box-sizing: border-box;
+      width: calc(100% + var(--script-block-left-inset) + var(--script-block-right-inset));
+      margin-left: calc(0px - var(--script-block-left-inset));
+      margin-right: calc(0px - var(--script-block-right-inset));
     }
 
     .cue-range-line {
@@ -358,6 +382,71 @@
     #cueEditorActions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap; }
     #cueAnchorInfo { color:#aaa; font-family:monospace; font-size:13px; overflow-wrap:anywhere; }
     #cueEditorError { color:#f88; min-height:1.2em; margin-top:6px; }
+
+    #settingsBackdrop {
+      position:fixed;
+      inset:0;
+      z-index:10025;
+      background:rgba(0,0,0,.5);
+      pointer-events:auto;
+      touch-action:none;
+    }
+    #settingsBackdrop[hidden] { display:none; }
+
+    #settingsPanel {
+      position: fixed;
+      z-index: 10030;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(480px, calc(100vw - 24px));
+      box-sizing: border-box;
+      padding: 16px;
+      border: 1px solid #666;
+      border-radius: 9px;
+      background: #151515;
+      box-shadow: 0 10px 40px rgba(0,0,0,.78);
+      color: white;
+      font-size: 16px;
+      pointer-events:auto;
+      touch-action:manipulation;
+    }
+    #settingsPanel[hidden] { display:none; }
+    #settingsPanel h3 { margin:0 0 12px; font-size:19px; }
+    #settingsPanel .settings-row {
+      display:grid;
+      grid-template-columns: minmax(130px, 1fr) minmax(150px, 1.4fr);
+      gap:12px;
+      align-items:center;
+      margin:12px 0;
+    }
+    #settingsPanel label { color:#ccc; }
+    #settingsPanel select,
+    #settingsPanel input[type="range"] {
+      width:100%;
+      box-sizing:border-box;
+    }
+    #settingsPanel select {
+      height:36px;
+      padding:0 8px;
+      border:1px solid #555;
+      border-radius:5px;
+      background:#222;
+      color:white;
+    }
+    #settingsMarginControls[aria-disabled="true"] { opacity:.45; }
+    #settingsMarginControls[aria-disabled="true"] select,
+    #settingsMarginControls[aria-disabled="true"] input { pointer-events:none; }
+    #annotationMarginWidthValue { color:#aaa; font-variant-numeric:tabular-nums; }
+    #settingsSaveStatus { min-height:1.2em; color:#aaa; font-size:13px; }
+    #settingsSaveStatus.error { color:#f88; }
+    #settingsActions { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; }
+    #settingsSaveStatus { flex:1; }
+    #settingsDoneBtn { min-width:90px; min-height:38px; }
+
+    @media (max-width:520px) {
+      #settingsPanel .settings-row { grid-template-columns:1fr; gap:5px; }
+    }
 
 
     .cue-trigger-word {
@@ -556,6 +645,13 @@
       touch-action: none;
     }
 
+    body.overview-rail-left #overviewRail {
+      left: 0;
+      right: auto;
+      border-left: 0;
+      border-right: 1px solid #555;
+    }
+
     #overviewMarkers {
       position: absolute;
       inset: 0;
@@ -608,6 +704,16 @@
     /* Leave the overview rail unobscured without changing scroll geometry. */
     #viewport {
       right: 18px;
+    }
+
+    body.overview-rail-left #viewport {
+      left: 18px;
+      right: 0;
+    }
+
+    body.overview-rail-left #contextHeader {
+      left: 18px;
+      right: 0;
     }
 
     /* Live-show cue treatment: full-width, unmistakable department strip. */
@@ -716,6 +822,7 @@
     <button id="fullscreenBtn" class="icon-btn" title="Fullscreen" aria-label="Fullscreen">⛶</button>
     <button id="wakeLockBtn" class="icon-btn" title="Keep screen awake" aria-label="Keep screen awake">☀</button>
     <button id="stageDirectionsBtn" class="icon-btn" title="Show stage directions" aria-label="Show stage directions">SD</button>
+    <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
 
     <select id="scriptSelect" title="Choose script" aria-label="Choose script">
       <option value="">Script…</option>
@@ -771,6 +878,39 @@
     <input id="annotationWidth" type="range" min="1" max="10" step="0.5" value="3" title="Line width" aria-label="Annotation line width">
     <span id="annotationSyncStatus"></span>
     <button type="button" id="annotationDoneBtn" title="Finish annotating" aria-label="Finish annotating">✓</button>
+  </div>
+
+  <div id="settingsBackdrop" hidden></div>
+  <div id="settingsPanel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+    <h3 id="settingsTitle">Settings</h3>
+    <div class="settings-row">
+      <label for="railSideSelect">Overview rail</label>
+      <select id="railSideSelect">
+        <option value="right">Right</option>
+        <option value="left">Left</option>
+      </select>
+    </div>
+    <div id="settingsMarginControls">
+      <div class="settings-row">
+        <label for="annotationMarginSideSelect">Department annotation margin</label>
+        <select id="annotationMarginSideSelect">
+          <option value="none">None</option>
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <label for="annotationMarginWidth">Margin width</label>
+        <div>
+          <input id="annotationMarginWidth" type="range" min="0" max="40" step="1" value="0">
+          <span id="annotationMarginWidthValue">0%</span>
+        </div>
+      </div>
+    </div>
+    <div id="settingsActions">
+      <span id="settingsSaveStatus" role="status"></span>
+      <button id="settingsDoneBtn" type="button">Done</button>
+    </div>
   </div>
 
   <div id="cueEditorPanel" hidden>
@@ -835,6 +975,16 @@
     const fullscreenBtn = document.getElementById("fullscreenBtn");
     const wakeLockBtn = document.getElementById("wakeLockBtn");
     const stageDirectionsBtn = document.getElementById("stageDirectionsBtn");
+    const settingsBtn = document.getElementById("settingsBtn");
+    const settingsBackdrop = document.getElementById("settingsBackdrop");
+    const settingsPanel = document.getElementById("settingsPanel");
+    const railSideSelect = document.getElementById("railSideSelect");
+    const settingsMarginControls = document.getElementById("settingsMarginControls");
+    const annotationMarginSideSelect = document.getElementById("annotationMarginSideSelect");
+    const annotationMarginWidth = document.getElementById("annotationMarginWidth");
+    const annotationMarginWidthValue = document.getElementById("annotationMarginWidthValue");
+    const settingsSaveStatus = document.getElementById("settingsSaveStatus");
+    const settingsDoneBtn = document.getElementById("settingsDoneBtn");
     const overviewMasterIndicator = document.getElementById("overviewMasterIndicator");
     const speedInput = document.getElementById("speedInput");
     const speedControl = document.getElementById("speedControl");
@@ -916,6 +1066,8 @@
     const SCRIPT_GET_ENDPOINT = "/scripts/get_script.php";
     const CUE_API_ENDPOINT = "/scripts/cue_api.php";
     const ANNOTATION_API_ENDPOINT = "/scripts/annotation_api.php";
+    const SETTINGS_API_ENDPOINT = "/scripts/settings_api.php";
+    const RAIL_SIDE_STORAGE_KEY = "gaosTeleprompterRailSide";
     const ALLOWED_DEPARTMENTS = ["FS", "LX", "SND", "STG"];
     const DEPARTMENT_DEFAULT_COLORS = {
       FS: "#ffd000",
@@ -959,6 +1111,12 @@
       sessionStorage.setItem(masterSessionStorageKey, masterSessionId);
     }
     let masterControlConflict = false;
+    let railSide = "right";
+    let departmentMargin = {side:"none", width:20};
+    let departmentSettingsRevision = 0;
+    let departmentSettingsLoadSerial = 0;
+    let departmentSettingsSaveRunning = false;
+    let departmentSettingsSavePending = false;
     let availableScripts = [];
     let currentScriptId = null;
     let scriptLoadSerial = 0;
@@ -989,6 +1147,7 @@
     // weights scale sensibly when each device uses a different font size.
     let loadedAnnotations = [];
     let annotationRevision = 0;
+    let annotationLoadSerial = 0;
     let annotationMode = false;
     let annotationTool = "pen";
     let annotationDraft = null;
@@ -1853,6 +2012,10 @@
         masterPassword.setAttribute("aria-label", "Master password");
         masterLoginBtn.title = "Authenticate as master";
       }
+      syncSettingsControls();
+      if (cueEditorUnlocked && departmentSettingsSavePending && !departmentSettingsSaveRunning) {
+        flushDepartmentMarginSave();
+      }
     }
 
     function departmentUsesWordAnchors(dept = activeDepartment) {
@@ -2204,9 +2367,14 @@
       return el;
     }
 
-    // Annotation X coordinates remain normalized to the prompt width.
+    // X coordinates are relative to the area left after applying the optional
+    // annotation margin. Existing script/cue padding is deliberately excluded
+    // so enabling this feature with no margin does not move saved annotations.
+    // A controlled negative/greater-than-one range represents margin drawing.
     // Vertical coordinates are stored in text line-height units so wrapping the
     // same prompt onto extra lines on a phone does not stretch the drawing.
+    const ANNOTATION_X_MIN = -2;
+    const ANNOTATION_X_MAX = 3;
     const ANNOTATION_Y_MIN = -10;
     const ANNOTATION_Y_MAX = 50;
 
@@ -2219,8 +2387,26 @@
       return Math.max(1, (Number.isFinite(font) ? font : currentScriptFontPx()) * 1.4);
     }
 
-    function annotationPointToPx(point, width, blockHeight, lineHeight, ann) {
-      const x = Math.max(0, Math.min(1, Number(point[0]) || 0)) * width;
+    function promptHorizontalGeometry(block) {
+      const margin = departmentMarginSetting();
+      const contentStyle = getComputedStyle(content);
+      const contentWidth = Math.max(1,
+        content.clientWidth -
+        (parseFloat(contentStyle.paddingLeft) || 0) -
+        (parseFloat(contentStyle.paddingRight) || 0));
+      const marginPx = activeDepartment && margin.side !== "none"
+        ? contentWidth * margin.width / 100
+        : 0;
+      return {
+        offset: margin.side === "left" ? marginPx : 0,
+        width: Math.max(1, block.clientWidth - marginPx)
+      };
+    }
+
+    function annotationPointToPx(point, geometry, blockHeight, lineHeight, ann) {
+      const xUnit = Math.max(ANNOTATION_X_MIN,
+        Math.min(ANNOTATION_X_MAX, Number(point[0]) || 0));
+      const x = geometry.offset + xUnit * geometry.width;
       const yUnit = Math.max(ANNOTATION_Y_MIN, Math.min(ANNOTATION_Y_MAX, Number(point[1]) || 0));
 
       // v6 annotations explicitly use line-height coordinates. Older saved
@@ -2232,13 +2418,13 @@
       return [x, yUnit * yScale];
     }
 
-    function buildAnnotationShape(svg, ann, width, height, lineHeight) {
+    function buildAnnotationShape(svg, ann, geometry, height, lineHeight) {
       const color = /^#[0-9a-f]{6}$/i.test(ann.color || '') ? ann.color : departmentDefaultColor();
       const sw = annotationStrokeWidth(ann);
       let shape = null;
 
       if (ann.type === 'stroke' && Array.isArray(ann.points) && ann.points.length >= 2) {
-        const pts = ann.points.map(p => annotationPointToPx(p, width, height, lineHeight, ann));
+        const pts = ann.points.map(p => annotationPointToPx(p, geometry, height, lineHeight, ann));
         const pressures = Array.isArray(ann.pressures) ? ann.pressures : null;
         if (pressures && pressures.length === pts.length) {
           const group = svgElement('g');
@@ -2260,8 +2446,8 @@
           shape = svgElement('path', {d, stroke:color, 'stroke-width':sw, fill:'none'});
         }
       } else if (ann.type === 'arrow' && ann.from && ann.to) {
-        const [x1,y1] = annotationPointToPx(ann.from, width, height, lineHeight, ann);
-        const [x2,y2] = annotationPointToPx(ann.to, width, height, lineHeight, ann);
+        const [x1,y1] = annotationPointToPx(ann.from, geometry, height, lineHeight, ann);
+        const [x2,y2] = annotationPointToPx(ann.to, geometry, height, lineHeight, ann);
         const group = svgElement('g');
         const line = svgElement('line', {x1,y1,x2,y2,stroke:color,'stroke-width':sw});
         line.classList.add('annotation-shape');
@@ -2281,15 +2467,15 @@
         group.dataset.annotationId = ann.id || '';
         return group;
       } else if (ann.type === 'ellipse' && ann.from && ann.to) {
-        const [x1,y1] = annotationPointToPx(ann.from, width, height, lineHeight, ann);
-        const [x2,y2] = annotationPointToPx(ann.to, width, height, lineHeight, ann);
+        const [x1,y1] = annotationPointToPx(ann.from, geometry, height, lineHeight, ann);
+        const [x2,y2] = annotationPointToPx(ann.to, geometry, height, lineHeight, ann);
         shape = svgElement('ellipse', {
           cx:(x1+x2)/2, cy:(y1+y2)/2,
           rx:Math.max(1,Math.abs(x2-x1)/2), ry:Math.max(1,Math.abs(y2-y1)/2),
           stroke:color, 'stroke-width':sw, fill:'none'
         });
       } else if (ann.type === 'text' && ann.at && ann.text) {
-        const [x,y] = annotationPointToPx(ann.at, width, height, lineHeight, ann);
+        const [x,y] = annotationPointToPx(ann.at, geometry, height, lineHeight, ann);
         const refFont = Math.max(12, Number(ann.fontPx) || 42);
         const textScale = Math.max(.65, Math.min(2.5, currentScriptFontPx() / refFont));
         shape = svgElement('text', {
@@ -2328,14 +2514,14 @@
         const block = content.querySelector('[data-prompt-id="' + CSS.escape(prompt) + '"]');
         if (!block) continue;
         block.classList.add('prompt-with-annotations');
-        const width = Math.max(1, block.clientWidth);
+        const geometry = promptHorizontalGeometry(block);
         const height = Math.max(1, block.clientHeight);
         const lineHeight = promptLineHeightPx(block);
         const svg = svgElement('svg', {width:'100%', height:'100%'});
         svg.classList.add('annotation-layer');
         svg.dataset.promptId = prompt;
         for (const ann of annotations) {
-          const shape = buildAnnotationShape(svg, ann, width, height, lineHeight);
+          const shape = buildAnnotationShape(svg, ann, geometry, height, lineHeight);
           if (shape) svg.appendChild(shape);
         }
         block.appendChild(svg);
@@ -2351,16 +2537,25 @@
       });
     }
 
-    async function loadDepartmentAnnotations({preferCache=true} = {}) {
-      loadedAnnotations = [];
-      annotationRevision = 0;
-      annotationDraft = null;
-      clearAnnotationLayers();
+    async function loadDepartmentAnnotations({preferCache=true, preserveExisting=false} = {}) {
       if (!activeDepartment || !currentScriptId) return;
 
-      const key = annotationCacheKey();
+      const script = currentScriptId;
+      const department = activeDepartment;
+      const key = annotationCacheKey(script, department);
+      const serial = ++annotationLoadSerial;
+
+      if (!preserveExisting) {
+        loadedAnnotations = [];
+        annotationRevision = 0;
+        annotationDraft = null;
+        clearAnnotationLayers();
+      }
+
       if (preferCache) {
         const cached = await annotationDbGetDoc(key);
+        if (serial !== annotationLoadSerial ||
+            script !== currentScriptId || department !== activeDepartment) return;
         if (cached && Array.isArray(cached.annotations)) {
           loadedAnnotations = cached.annotations;
           annotationRevision = Number(cached.revision) || 0;
@@ -2371,6 +2566,8 @@
         // Never overwrite locally queued offline edits with an older server
         // copy. They remain visible until the editor unlocks and syncs them.
         const pending = await annotationDbOpsFor(key);
+        if (serial !== annotationLoadSerial ||
+            script !== currentScriptId || department !== activeDepartment) return;
         if (pending.length) {
           updateAnnotationSyncLabel();
           if (cueEditorUnlocked && navigator.onLine) flushAnnotationQueue();
@@ -2380,14 +2577,16 @@
 
       try {
         const url = ANNOTATION_API_ENDPOINT +
-          '?action=get&script=' + encodeURIComponent(currentScriptId) +
-          '&dept=' + encodeURIComponent(activeDepartment) + '&_=' + Date.now();
+          '?action=get&script=' + encodeURIComponent(script) +
+          '&dept=' + encodeURIComponent(department) + '&_=' + Date.now();
         const response = await fetch(url, {cache:'no-store'});
         if (!response.ok) throw new Error('Annotation load HTTP ' + response.status);
         const body = await response.json();
+        if (serial !== annotationLoadSerial ||
+            script !== currentScriptId || department !== activeDepartment) return;
         loadedAnnotations = Array.isArray(body.annotations) ? body.annotations : [];
         annotationRevision = Number(body.revision) || 0;
-        await annotationDbPutDoc(currentScriptId, activeDepartment, annotationRevision, loadedAnnotations);
+        await annotationDbPutDoc(script, department, annotationRevision, loadedAnnotations);
         renderAnnotations();
         requestAnimationFrame(rebuildOverviewRail);
       } catch (_) {
@@ -2636,6 +2835,8 @@
     }
 
     async function applyAnnotationLocal(action, payload, {recordUndo=true} = {}) {
+      // A local edit wins over any older server document currently in flight.
+      annotationLoadSerial++;
       if (action === 'save' && payload.annotation) {
         const ann = payload.annotation;
         const idx = loadedAnnotations.findIndex(a => a && a.id === ann.id);
@@ -2707,9 +2908,12 @@
       const rect = block.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return [0,0];
       const lineHeight = promptLineHeightPx(block);
+      const geometry = promptHorizontalGeometry(block);
 
       return [
-        Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)),
+        Math.max(ANNOTATION_X_MIN,
+          Math.min(ANNOTATION_X_MAX,
+            (clientX - rect.left - geometry.offset) / geometry.width)),
         Math.max(ANNOTATION_Y_MIN,
           Math.min(ANNOTATION_Y_MAX, (clientY - rect.top) / lineHeight))
       ];
@@ -2717,7 +2921,42 @@
 
     function promptBlockAtPoint(clientX, clientY) {
       const el = document.elementFromPoint(clientX, clientY);
-      return el && el.closest ? el.closest('[data-prompt-id]') : null;
+      if (!el || !el.closest) return null;
+
+      const direct = el.closest('[data-prompt-id]');
+      if (direct) return direct;
+
+      // Controls and the overview rail must not accidentally start a drawing.
+      if (el.closest('#toolbar, #annotationTools, #cueEditorPanel, #settingsPanel, #settingsBackdrop, #overviewRail, #contextHeader')) {
+        return null;
+      }
+
+      const viewportRect = viewport.getBoundingClientRect();
+      const contentRect = content.getBoundingClientRect();
+      if (clientX < contentRect.left || clientX > contentRect.right ||
+          clientY < viewportRect.top || clientY > viewportRect.bottom) {
+        return null;
+      }
+
+      // Margins between semantic blocks belong to the nearest visible block.
+      // Y coordinates may extend beyond an anchor block, so the existing data
+      // format already represents drawings that begin in these gaps.
+      let nearest = null;
+      let nearestDistance = Infinity;
+      for (const block of promptBlocks()) {
+        const rect = block.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) continue;
+        const distance = clientY < rect.top
+          ? rect.top - clientY
+          : clientY > rect.bottom
+            ? clientY - rect.bottom
+            : 0;
+        if (distance < nearestDistance) {
+          nearest = block;
+          nearestDistance = distance;
+        }
+      }
+      return nearest;
     }
 
     function setAnnotationTool(tool) {
@@ -2813,8 +3052,8 @@
       if (annotationDraft.type === 'stroke') {
         const pts = annotationDraft.points;
         const last = pts[pts.length-1];
-        const rect = block.getBoundingClientRect();
-        const dx = (point[0]-last[0]) * rect.width;
+        const geometry = promptHorizontalGeometry(block);
+        const dx = (point[0]-last[0]) * geometry.width;
         const dy = (point[1]-last[1]) * promptLineHeightPx(block);
         if (dx*dx + dy*dy >= 2.25) { pts.push(point); if (Array.isArray(annotationDraft.pressures)) annotationDraft.pressures.push(penPressure(e)); }
       } else {
@@ -2873,7 +3112,7 @@
         flushAnnotationQueue();
         return;
       }
-      loadDepartmentAnnotations({preferCache:false});
+      loadDepartmentAnnotations({preferCache:false, preserveExisting:true});
     }
 
     async function handleCueRevisionEvent(event) {
@@ -2891,6 +3130,18 @@
         // Keep the currently rendered cues. The next signal or page/script
         // reload will retry without disrupting live follower operation.
       }
+    }
+
+    function handleDepartmentSettingsEvent(event) {
+      if (!activeDepartment || departmentSettingsSaveRunning || departmentSettingsSavePending) return;
+      let body = null;
+      try { body = JSON.parse(event.data); } catch (_) { return; }
+      const entry = body && body.departments && body.departments[activeDepartment];
+      if (!entry || Number(entry.revision) <= departmentSettingsRevision) return;
+      departmentSettingsRevision = Math.max(0, Number(entry.revision) || 0);
+      departmentMargin = normalizeDepartmentMargin(entry.annotationMargin);
+      applyDisplaySettings();
+      if (!settingsPanel.hidden) setSettingsSaveStatus("Updated from central settings.");
     }
 
     async function loadShowScript(id) {
@@ -3803,6 +4054,12 @@
         handleCueRevisionEvent(event);
       });
 
+      events.addEventListener('department-settings', (event) => {
+        if (events !== followEventSource) return;
+        lastServerHeartbeatPerf = performance.now();
+        handleDepartmentSettingsEvent(event);
+      });
+
       events.addEventListener('server-heartbeat', () => {
         if (events !== followEventSource) return;
         lastServerHeartbeatPerf = performance.now();
@@ -4218,11 +4475,204 @@
           scrollPos = Math.max(0, Math.min(maxScrollTop(), target));
           viewport.scrollTop = scrollPos;
 
+          if (syncMode === "follow") {
+            followSamples = [];
+            followClockServerMs = null;
+            followClockPerfMs = null;
+            lastRenderedFollowPosition = viewport.scrollTop;
+            followWaitingSince = null;
+          }
+
           if (syncMode === "master") {
             publishMasterState();
           }
         }
       });
+    }
+
+    function loadDisplaySettings() {
+      try {
+        const storedRailSide = localStorage.getItem(RAIL_SIDE_STORAGE_KEY);
+        railSide = storedRailSide === "left" ? "left" : "right";
+      } catch (_) {
+        railSide = "right";
+      }
+    }
+
+    function normalizeDepartmentMargin(margin) {
+      const side = margin && (margin.side === "left" || margin.side === "right")
+        ? margin.side
+        : "none";
+      const storedWidth = margin ? Number(margin.width) : 20;
+      const width = Number.isFinite(storedWidth)
+        ? Math.max(0, Math.min(40, Math.round(storedWidth)))
+        : 20;
+      return {side, width};
+    }
+
+    function departmentMarginSetting() {
+      return normalizeDepartmentMargin(departmentMargin);
+    }
+
+    function setSettingsSaveStatus(message, isError=false) {
+      settingsSaveStatus.textContent = message;
+      settingsSaveStatus.classList.toggle("error", isError);
+    }
+
+    function syncSettingsControls() {
+      const margin = departmentMarginSetting();
+      const canEditMargin = !!activeDepartment && cueEditorUnlocked;
+      railSideSelect.value = railSide;
+      annotationMarginSideSelect.value = activeDepartment ? margin.side : "none";
+      annotationMarginWidth.value = activeDepartment ? String(margin.width) : "0";
+      annotationMarginWidthValue.textContent = activeDepartment
+        ? (margin.side === "none" ? "Off" : margin.width + "%")
+        : "Department views only";
+      settingsMarginControls.setAttribute("aria-disabled", canEditMargin ? "false" : "true");
+      annotationMarginSideSelect.disabled = !canEditMargin;
+      annotationMarginWidth.disabled = !canEditMargin || margin.side === "none";
+
+      if (!activeDepartment) {
+        setSettingsSaveStatus("");
+      } else if (!cueEditorUnlocked && !departmentSettingsSaveRunning) {
+        setSettingsSaveStatus("Unlock " + activeDepartment + " editing to change its central margin.");
+      } else if (cueEditorUnlocked && settingsSaveStatus.textContent.startsWith("Unlock ")) {
+        setSettingsSaveStatus("");
+      }
+    }
+
+    async function loadCentralDepartmentSettings({preservePosition=true} = {}) {
+      if (!activeDepartment) return true;
+      const department = activeDepartment;
+      const serial = ++departmentSettingsLoadSerial;
+      try {
+        const response = await fetch(
+          SETTINGS_API_ENDPOINT + "?action=get&dept=" + encodeURIComponent(department) + "&_=" + Date.now(),
+          {cache:"no-store"}
+        );
+        if (!response.ok) throw new Error("Settings load HTTP " + response.status);
+        const body = await response.json();
+        if (serial !== departmentSettingsLoadSerial || department !== activeDepartment ||
+            departmentSettingsSavePending) return false;
+        departmentSettingsRevision = Math.max(0, Number(body.revision) || 0);
+        departmentMargin = normalizeDepartmentMargin(body.annotationMargin);
+        applyDisplaySettings({preservePosition});
+        return true;
+      } catch (_) {
+        if (serial === departmentSettingsLoadSerial && department === activeDepartment) {
+          setSettingsSaveStatus("Could not load central department settings.", true);
+        }
+        return false;
+      }
+    }
+
+    async function flushDepartmentMarginSave() {
+      if (departmentSettingsSaveRunning) return;
+      departmentSettingsSaveRunning = true;
+
+      try {
+        while (departmentSettingsSavePending && activeDepartment && cueEditorUnlocked) {
+          departmentSettingsSavePending = false;
+          const department = activeDepartment;
+          const margin = departmentMarginSetting();
+          setSettingsSaveStatus("Saving centrally…");
+
+          try {
+            const response = await fetch(SETTINGS_API_ENDPOINT + "?action=save", {
+              method:"POST",
+              headers:{
+                "Content-Type":"application/json",
+                "X-Cue-Key":cueEditorKey
+              },
+              cache:"no-store",
+              body:JSON.stringify({department, annotationMargin:margin})
+            });
+            const text = await response.text();
+            let body = null;
+            try { body = JSON.parse(text); } catch (_) {}
+            if (!response.ok) throw new Error((body && body.error) || "Settings update failed");
+            if (department === activeDepartment) {
+              departmentSettingsRevision = Math.max(
+                departmentSettingsRevision,
+                Number(body && body.revision) || 0
+              );
+              if (!departmentSettingsSavePending) {
+                departmentMargin = normalizeDepartmentMargin(body && body.annotationMargin);
+                applyDisplaySettings({preservePosition:false});
+                setSettingsSaveStatus("Saved centrally.");
+              }
+            }
+          } catch (_) {
+            if (department === activeDepartment && !departmentSettingsSavePending) {
+              await loadCentralDepartmentSettings();
+              setSettingsSaveStatus("Central margin save failed; restored the server value.", true);
+            }
+          }
+        }
+      } finally {
+        departmentSettingsSaveRunning = false;
+        syncSettingsControls();
+      }
+    }
+
+    function queueDepartmentMarginSave(side, width) {
+      if (!activeDepartment || !cueEditorUnlocked) return;
+      departmentMargin = normalizeDepartmentMargin({side, width});
+      departmentSettingsSavePending = true;
+      applyDisplaySettings();
+      flushDepartmentMarginSave();
+    }
+
+    function applyDisplaySettings({preservePosition=true} = {}) {
+      const margin = departmentMarginSetting();
+      const effectiveWidth = activeDepartment && margin.side !== "none"
+        ? margin.width
+        : 0;
+
+      const apply = () => {
+        document.body.classList.toggle("overview-rail-left", railSide === "left");
+        content.style.setProperty(
+          "--annotation-margin-left",
+          margin.side === "left" ? effectiveWidth + "%" : "0px"
+        );
+        content.style.setProperty(
+          "--annotation-margin-right",
+          margin.side === "right" ? effectiveWidth + "%" : "0px"
+        );
+      };
+
+      if (preservePosition && content.querySelector("[data-prompt-id]")) {
+        preserveSemanticPositionDuringLayoutChange(apply);
+      } else {
+        apply();
+      }
+
+      syncSettingsControls();
+
+      requestAnimationFrame(() => {
+        drawCueConnectors();
+        drawCueRanges();
+        scheduleAnnotationRender();
+        rebuildOverviewRail();
+        scheduleContextUpdate();
+        updateMasterPositionMarker();
+        updateCueEditorPositionMarkers();
+      });
+    }
+
+    function openSettingsPanel() {
+      settingsBackdrop.hidden = false;
+      settingsPanel.hidden = false;
+      scheduleToolbarHide();
+      applyDisplaySettings({preservePosition:false});
+      railSideSelect.focus();
+    }
+
+    function closeSettingsPanel() {
+      settingsBackdrop.hidden = true;
+      settingsPanel.hidden = true;
+      settingsBtn.focus();
+      scheduleToolbarHide();
     }
 
     function setToolbarHidden(hidden) {
@@ -4239,7 +4689,7 @@
 
       // A locally-paused follower must make that state obvious. Keep the
       // controls permanently visible until the operator presses Rejoin.
-      if (syncMode === "follow" && !followingLive) {
+      if (!settingsPanel.hidden || (syncMode === "follow" && !followingLive)) {
         return;
       }
 
@@ -4875,6 +5325,37 @@
       showStageDirections = !showStageDirections;
       applyStageDirectionVisibility();
     });
+    settingsBtn.addEventListener("click", openSettingsPanel);
+    settingsBackdrop.addEventListener("click", closeSettingsPanel);
+    settingsBackdrop.addEventListener("pointerdown", (e) => e.stopPropagation());
+    settingsPanel.addEventListener("pointerdown", (e) => e.stopPropagation());
+    settingsDoneBtn.addEventListener("click", closeSettingsPanel);
+    railSideSelect.addEventListener("change", () => {
+      railSide = railSideSelect.value === "left" ? "left" : "right";
+      try { localStorage.setItem(RAIL_SIDE_STORAGE_KEY, railSide); } catch (_) {}
+      applyDisplaySettings();
+    });
+    annotationMarginSideSelect.addEventListener("change", () => {
+      queueDepartmentMarginSave(
+        annotationMarginSideSelect.value,
+        annotationMarginWidth.value
+      );
+    });
+    annotationMarginWidth.addEventListener("input", () => {
+      annotationMarginWidthValue.textContent = annotationMarginWidth.value + "%";
+    });
+    annotationMarginWidth.addEventListener("change", () => {
+      queueDepartmentMarginSave(
+        annotationMarginSideSelect.value,
+        annotationMarginWidth.value
+      );
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !settingsPanel.hidden) {
+        e.preventDefault();
+        closeSettingsPanel();
+      }
+    });
     addCueBtn.addEventListener("click", () => openCueEditor(null));
     annotateBtn.addEventListener("click", startAnnotationMode);
     annotationDoneBtn.addEventListener("click", stopAnnotationMode);
@@ -4926,6 +5407,9 @@
 
 
     document.addEventListener('pointerdown', (e) => {
+      if (!settingsPanel.hidden && e.target && e.target.closest &&
+          e.target.closest('#settingsPanel, #settingsBackdrop')) return;
+
       const inAnnotationUi = e.target && e.target.closest && e.target.closest('#annotationTools');
 
       // Any non-pen navigation/touch outside the temporary palette dismisses
@@ -5015,6 +5499,8 @@
 
     document.addEventListener("pointerdown", (e) => {
       if (!cueWordPickActive) return;
+      if (!settingsPanel.hidden && e.target && e.target.closest &&
+          e.target.closest('#settingsPanel, #settingsBackdrop')) return;
 
       // Handle the trigger-word selection before the teleprompter's normal
       // drag/pointer-capture code can consume the gesture.
@@ -5090,6 +5576,8 @@
       ? requestedDepartment
       : null;
     updateCueLockUi();
+    loadDisplaySettings();
+    applyDisplaySettings({preservePosition:false});
 
 
     let cueTrackingScrollPending = false;
@@ -5175,6 +5663,9 @@
 
     async function initializeTeleprompter() {
       try {
+        if (activeDepartment) {
+          await loadCentralDepartmentSettings({preservePosition:false});
+        }
         await loadAvailableScripts();
         const requested = query.get("script");
         const first = availableScripts.length ? availableScripts[0].id : null;

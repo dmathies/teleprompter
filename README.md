@@ -14,6 +14,8 @@ Start with:
 - [`docs/annotations.md`](docs/annotations.md) for annotation storage and
   offline synchronization;
 - [`docs/script-format.md`](docs/script-format.md) for show-script markup.
+- [`docs/settings.md`](docs/settings.md) for browser display preferences and
+  annotation margins.
 
 Copyrighted production scripts and writable runtime JSON are installed or
 created during deployment and are intentionally not tracked. The repository

@@ -20,6 +20,7 @@ The PHP endpoints are:
 | `teleprompter_events.php` | Stream state, heartbeats, cue revisions, and annotation revisions over SSE. |
 | `cue_api.php` | Read and mutate department cue documents and publish revision signals. |
 | `annotation_api.php` | Read and mutate annotation documents and publish revision signals. |
+| `settings_api.php` | Read central department display settings and perform authenticated updates. |
 | `auth_cookie.php` | Issue and verify signed role cookies. |
 
 All current browser clients use synchronization room `main`.
@@ -34,6 +35,11 @@ Master identity is a random value in `sessionStorage`, so it survives reloads
 in the same tab. Authentication is retained separately in secure HTTP-only
 cookies for 24 hours.
 
+Rail side is kept in `localStorage` and shared by all views in that browser.
+Annotation margin settings are instead central, keyed by department, and
+stored as ignored runtime data. Updates require the matching department editor
+login and are announced to open clients over SSE.
+
 ## Persistent and operational data
 
 | Path | Contents |
@@ -45,9 +51,13 @@ cookies for 24 hours.
 | `scripts/teleprompter_state/<room>.master.json` | Ignored runtime data: master owner and lease timestamps. |
 | `scripts/teleprompter_state/annotation_revisions.json` | Ignored runtime data: annotation revision notification map. |
 | `scripts/teleprompter_state/cue_revisions.json` | Ignored runtime data: cue revision notification map. |
+| `scripts/teleprompter_state/department_settings.json` | Ignored runtime data: central revisioned annotation-margin settings by department. |
 
 Annotation files belong only in the root `show-annotations/` directory. The
 application does not read annotation data from beneath `scripts/`.
+
+See `settings.md` for the preference keys and the relationship between margins,
+script text, cues, and annotation coordinates.
 
 ## Credential configuration
 
@@ -88,9 +98,10 @@ coordinated decision.
 
 ## Runtime-data Git policy
 
-State, cue, and annotation JSON are mutable production data. They are ignored
-under `scripts/teleprompter_state/`, `show-cues/`, and `show-annotations/` and
-have been removed from the current Git index without deleting working copies.
+State, central department settings, cue, and annotation JSON are mutable
+production data. They are ignored under `scripts/teleprompter_state/`,
+`show-cues/`, and `show-annotations/` and have been removed from the current Git
+index without deleting working copies.
 Each directory has a tracked `.gitkeep` so a fresh deployment creates the
 required path.
 

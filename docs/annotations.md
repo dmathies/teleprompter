@@ -22,20 +22,38 @@ annotation has an ID, semantic prompt anchor, color, reference width, reference
 font size, reference line height, and coordinate mode. Freehand strokes may
 also preserve one pressure value per point.
 
-X coordinates are normalized to prompt width. In current line-coordinate mode,
-Y is expressed in originating line heights and may extend outside the anchor
-block so a stroke can cross lines. Do not clamp existing geometry to the visible
-block.
+X coordinates are normalized to the prompt area left after applying the
+optional annotation margin: `0` is its left edge and `1` is its right edge.
+Existing cue/script padding is not part of that calculation, preserving the
+position of saved annotations when margins are disabled. Values below `0` or
+above `1` are valid so strokes can occupy a configured left or right annotation
+margin. In current line-coordinate mode, Y is expressed in originating line
+heights and may extend outside the anchor block so a stroke can cross lines. Do
+not clamp existing geometry to the visible block.
 
 ## Rendering and input
 
 Annotations render as SVG layers attached to prompt blocks. Geometry and stroke
-weight are recalculated for the current layout and font size.
+weight are recalculated for the current layout and font size. Remote revision
+refreshes keep the current SVG layers visible until the replacement document is
+available, avoiding a blank-frame flicker.
 
 An unlocked department editor can enter explicit annotation mode for mouse,
 touch, or pen input. A pen can also open the temporary palette and draw without
 turning finger navigation into drawing. Device eraser ends and supported barrel
 buttons select path erasing.
+
+A gesture that starts in whitespace between semantic blocks is anchored to the
+nearest visible prompt block. Its line-relative Y coordinate may begin above or
+below that block, using the same representation already used when a stroke
+crosses a block boundary. Toolbar, editor, header, and overview-rail areas are
+excluded from this fallback.
+
+Each department may centrally reserve a left or right blank margin. The margin
+indents only script text; cues continue across the full prompt. Because
+annotation X coordinates use the indented text area's origin and width,
+changing the margin shifts existing annotations with the text. See
+`settings.md` for the storage, authentication, and layout rules.
 
 Department authentication uses the corresponding entry in the `departments`
 map in the ignored `scripts/passwords.php`. It shares configuration storage

@@ -87,10 +87,11 @@ function validate_point($point, string $name): array {
     }
     $x = (float)$point[0];
     $y = (float)$point[1];
-    // X remains normalized to the originating prompt width.
+    // X is normalized to the area remaining after an optional annotation
+    // margin. Values outside 0..1 allow drawing into that margin.
     // Y may spill above/below the prompt so annotations can span multiple lines.
     if (!is_finite($x) || !is_finite($y) ||
-        $x < 0 || $x > 1 ||
+        $x < -2 || $x > 3 ||
         $y < -10 || $y > 50) {
         respond_json(400, ['ok'=>false,'error'=>'Invalid ' . $name]);
     }

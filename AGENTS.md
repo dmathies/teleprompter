@@ -17,6 +17,7 @@ Read the focused documentation before changing the corresponding area:
 - `docs/synchronization.md`
 - `docs/annotations.md`
 - `docs/script-format.md`
+- `docs/settings.md`
 
 ## General working rules
 
@@ -66,7 +67,7 @@ pixel scroll offsets are not shared.
 
 SSE is the primary follower transport. Adaptive HTTP polling is an automatic
 fallback while SSE reconnects. SSE also carries server-heartbeat, cue-revision,
-and annotation-revision events.
+annotation-revision, and central department-settings events.
 
 Master state is fresh for 10 seconds, matching the server-side master lease.
 A follower must not change script or position from state that is already stale
@@ -108,8 +109,10 @@ announced over SSE.
 Annotations are anchored to semantic script content and must scale across font
 sizes and devices. Pen input should remain distinct from finger/mouse
 navigation where possible. Erasing is path-based; the temporary translucent
-eraser trail is intentional. See `docs/annotations.md` before changing this
-area.
+eraser trail is intentional. Annotation gestures may start in whitespace
+between blocks by using the nearest visible semantic anchor. Remote refreshes
+must not clear visible annotations while awaiting the replacement document.
+See `docs/annotations.md` before changing this area.
 
 ## UI behaviour
 
@@ -120,6 +123,12 @@ area.
 - Avoid covering script text unnecessarily.
 - Support touch, mouse, and stylus input where applicable.
 - Preserve semantic script position across font-size and responsive reflow.
+- Browser display preferences are opened from the gear button. Rail side is a
+  browser-local preference. Annotation margin side and width are central,
+  revisioned values keyed by department; changing them requires that
+  department's editor login. See `docs/settings.md` before adding settings.
+- Annotation margins indent script text, not cue graphics. Existing annotations
+  move with the text-area coordinate origin when a margin changes.
 
 ## Performance and reliability
 
