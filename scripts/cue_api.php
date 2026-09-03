@@ -132,9 +132,19 @@ function validate_cue(array $cue): array {
     if (!preg_match('/^p[0-9]{6}$/', $prompt)) respond_json(400, ['ok'=>false,'error'=>'Invalid prompt anchor']);
     if (!in_array($anchorType, ['paragraph', 'word'], true)) respond_json(400, ['ok'=>false,'error'=>'Invalid anchor type']);
 
+    $anchorFraction = $anchor['fraction'] ?? 0;
+    if (!is_numeric($anchorFraction)) {
+        respond_json(400, ['ok'=>false,'error'=>'Invalid cue start position']);
+    }
+    $anchorFraction = (float)$anchorFraction;
+    if ($anchorFraction < 0 || $anchorFraction > 1) {
+        respond_json(400, ['ok'=>false,'error'=>'Invalid cue start position']);
+    }
+
     $normalizedAnchor = [
         'type' => $anchorType,
         'prompt' => $prompt,
+        'fraction' => $anchorFraction,
     ];
 
     if ($anchorType === 'word') {
