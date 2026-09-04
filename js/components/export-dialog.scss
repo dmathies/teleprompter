@@ -1,0 +1,97 @@
+@use "../../css/variables" as *;
+
+#exportBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: $z-export-backdrop;
+  background: $color-bg-backdrop;
+  pointer-events: auto;
+  touch-action: none;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+#exportPanel {
+  position: fixed;
+  z-index: $z-export-panel;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: 16px;
+  border: 1px solid $border-color-panel;
+  border-radius: $panel-radius;
+  background: $color-bg-panel;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.78);
+  color: $color-text-primary;
+  font-size: 16px;
+
+  &[hidden] {
+    display: none;
+  }
+
+  h3 {
+    margin: 0 0 12px;
+    font-size: 19px;
+  }
+
+  .export-row {
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) minmax(170px, 1.3fr);
+    gap: 12px;
+    align-items: center;
+    margin: 12px 0;
+  }
+
+  label {
+    color: $color-text-secondary;
+  }
+
+  select {
+    width: 100%;
+    height: 36px;
+    padding: 0 8px;
+    box-sizing: border-box;
+    border: 1px solid $border-color-default;
+    border-radius: 5px;
+    background: $color-bg-input;
+    color: $color-text-primary;
+  }
+
+  input[type="checkbox"] {
+    transform: scale(1.15);
+    transform-origin: left center;
+  }
+}
+
+#exportStatus {
+  min-height: 1.2em;
+  color: $color-text-muted;
+  font-size: 13px;
+  flex: 1;
+
+  &.error {
+    color: $color-sync-error;
+  }
+}
+
+#exportActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+
+  .spacer {
+    flex: 1;
+  }
+}
+
+@media (max-width: 520px) {
+  #exportPanel .export-row {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+}

@@ -2,19 +2,26 @@
 
 ## Runtime shape
 
-The teleprompter is a static browser application with small PHP endpoints and
-filesystem persistence. It deliberately has no JavaScript framework, build
-pipeline, package manager, or database.
+The teleprompter client is built with [Vite](https://vitejs.dev/), using
+[Lit](https://lit.dev/) Web Components, Sass stylesheets, and
+[unplugin-icons](https://github.com/unplugin/unplugin-icons). The backend consists
+of lightweight PHP endpoints with filesystem persistence and deliberately has no
+application database.
 
-The browser uses native ES modules. There is no generated bundle: these source
-files are deployed and served directly.
+During development, Vite serves native ES modules with Hot Module Replacement
+(HMR). When running in dev mode (`import.meta.env.DEV`), API calls target
+`http://localhost:8000`, where a local PHP server (`php -S localhost:8000`) runs.
+For deployment, `npm run build` compiles and bundles the client into `dist/`.
 
 | Client file | Responsibility |
 | --- | --- |
-| `teleprompter.html` | DOM shell for the toolbar, dialogs, overview rail, annotation tools, and script viewport. It loads the stylesheet and module entry point but contains no application logic. |
-| `css/teleprompter.css` | All application layout and visual states, including responsive, cue, annotation, rail, modal, and follow/master styling. |
+| `../teleprompter_v2.html` | DOM shell hosting the toolbar custom elements, dialogs, overview rail, annotation tools, and script viewport. It loads the stylesheet and module entry point but contains no application logic. |
+| `../index.html` | Root entry page redirecting visitors to `https://gaos.ch/`. |
+| `css/teleprompter.scss` | Top-level SCSS styles for layout and visual states, including responsive rules, cue and annotation styles, overview rail, and follow/master styling. Imports `css/_variables.scss`. |
+| `js/components/` | Modular Lit Web Components for toolbars and modal dialogs (`toolbar-transport.js`, `toolbar-display.js`, `toolbar-navigation.js`, `toolbar-sync.js`, `toolbar-sliders.js`, `annotation-toolbar.js`, `settings-dialog.js`, `export-dialog.js`, `cue-editor-dialog.js`), rendered into Light DOM with paired `.scss` styles. |
+| `js/icons.js` | FontAwesome regular and solid icons imported via `unplugin-icons` with a raw SVG compiler. |
 | `js/main.js` | Browser entry point and coordinator: script loading, display and navigation, master/follower control flow, cue and annotation workflows, settings, fullscreen, and wake lock. |
-| `js/dom.js` | Central lookup of the fixed teleprompter DOM elements consumed by `main.js`. |
+| `js/dom.js` | Central lookup of teleprompter DOM elements and component custom elements consumed by `main.js`. |
 | `js/semantic-position.js` | Validation, capture, comparison, and DOM mapping of prompt-and-fraction semantic positions. |
 | `js/sync-protocol.js` | State-delivery age validation and stable motion signatures used by synchronization. |
 | `js/cue-text.js` | Script text-node enumeration, cue word indexing, and live trigger-word wrapping. |
@@ -22,18 +29,19 @@ files are deployed and served directly.
 | `js/annotation-store.js` | IndexedDB access for cached annotation documents and queued offline operations. |
 | `js/pdf-export.js` | Browser-generated print/PDF view, including export data loading, markup decoration, pagination, and print annotation rendering. |
 | `js/utils.js` | Shared pure colour and health-display helpers used by the browser modules. |
+| `../vite.config.js` | Vite configuration defining the raw icon compiler and Rollup input entries (`index.html`, `teleprompter_v2.html`, `pen_pointer_diagnostics.html`, and `sse_test.html`). |
 
-`teleprompter.html` loads `js/main.js` with `type="module"`. `main.js` imports
-the focused modules and creates their stateful APIs by passing explicit DOM
-elements and accessors. `pdf-export.js` imports the shared colour helper and
-semantic-position normalization, while `main.js` injects its required dialog
-elements, endpoints, settings normalization, and current-state accessors. The
-feature modules do not own the application's live top-level state. Keep this
-direction of dependency when moving code between modules, and avoid introducing
-globals merely to cross a module boundary.
+`../teleprompter_v2.html` loads `js/main.js` with `type="module"`. `main.js` imports
+the Lit component definitions, focused modules, and creates stateful APIs by passing
+explicit DOM elements and accessors. Components render to Light DOM
+(`createRenderRoot() { return this; }`), allowing global CSS classes and theme rules
+to apply seamlessly. Feature modules do not own the application's live top-level state;
+`main.js` coordinates all communication and event listening. Keep this direction of
+dependency when moving code between modules, and avoid introducing globals merely to
+cross a module boundary.
 
 The client must be served over HTTP(S), rather than opened as a local file, so
-native module loading and endpoint requests use the same web origin.
+module loading and endpoint requests use a valid web origin.
 
 The PHP endpoints are:
 
@@ -52,12 +60,14 @@ All current browser clients use synchronization room `main`.
 
 ## Where to make browser changes
 
-- Change `teleprompter.html` when controls or dialog structure changes, and
-  update the corresponding element lookup and event wiring in `js/main.js`.
-- Change `css/teleprompter.css` for visual or responsive behaviour; script
-  fragments may still provide narrowly scoped show-specific styles.
+- Change the relevant component in `js/components/` and its SCSS file when UI controls,
+  dialog templates, or component-specific behaviour change.
+- Change `../teleprompter_v2.html` when high-level shell layout, custom element placement,
+  or viewport containers change.
+- Change `css/teleprompter.scss` or `css/_variables.scss` for global visual or responsive
+  behaviour; script fragments may still provide narrowly scoped show-specific styles.
 - Change `js/main.js` for live display, synchronization, cues, annotations, or
-  settings coordination and event wiring.
+  settings coordination and event wiring between components and modules.
 - Change the focused `js/` module that owns a reusable primitive rather than
   duplicating its logic in `js/main.js` or `js/pdf-export.js`.
 - Change `js/pdf-export.js` for the generated print document. Export has its

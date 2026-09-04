@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Teleprompter</title>
+  <link rel="stylesheet" href="css/teleprompter.scss">
+</head>
+<body>
+  <div id="masterIdleBorder" aria-hidden="true"></div>
+  <div id="contextHeader">
+    <span id="headerAct">Act —</span>
+    <span id="headerScene">Scene —</span>
+    <span id="headerPage">Page —</span>
+  </div>
+
+  <div id="toolbar">
+    <toolbar-transport id="toolbarTransport"></toolbar-transport>
+    <toolbar-display id="toolbarDisplay"></toolbar-display>
+    <toolbar-navigation id="toolbarNavigation"></toolbar-navigation>
+    <toolbar-sync id="toolbarSync"></toolbar-sync>
+    <toolbar-sliders id="toolbarSliders"></toolbar-sliders>
+  </div>
+
+  <annotation-toolbar id="annotationToolbar"></annotation-toolbar>
+
+  <settings-dialog id="settingsDialog"></settings-dialog>
+  <export-dialog id="exportDialog"></export-dialog>
+  <cue-editor-dialog id="cueEditorDialog"></cue-editor-dialog>
+
+
+  <div id="overviewRail" title="Script overview">
+    <div id="overviewMarkers"></div>
+    <div id="overviewViewportIndicator"></div>
+    <div id="overviewMasterIndicator" class="overview-mark master-position" hidden></div>
+  </div>
+  <div id="viewport">
+    <div id="content"></div>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

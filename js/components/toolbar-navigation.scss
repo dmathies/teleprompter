@@ -1,0 +1,40 @@
+@use "../../css/variables" as *;
+
+#scriptSelect,
+#sceneSelect,
+#songSelect {
+  height: 38px;
+  padding: 0 8px;
+  border-radius: $btn-radius;
+  background: $color-bg-input;
+  color: $color-text-primary;
+  border: 1px solid $border-color-default;
+  font-size: 15px;
+  box-sizing: border-box;
+}
+
+#scriptSelect {
+  width: 150px;
+}
+
+#sceneSelect {
+  width: 115px;
+}
+
+#songSelect {
+  width: 210px;
+}
+
+@media (max-width: 760px) {
+  #scriptSelect {
+    width: 125px;
+  }
+
+  #sceneSelect {
+    width: 96px;
+  }
+
+  #songSelect {
+    width: 150px;
+  }
+}

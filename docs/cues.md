@@ -1,13 +1,16 @@
 # Department cues
 
 Live cue loading, editing, synchronization, and screen rendering are
-implemented in `js/main.js`, with their visual rules in
-`css/teleprompter.css`. Shared live text-node enumeration, word indexing, and
-trigger-word wrapping are in `js/cue-text.js`; anchor positioning uses
-`js/semantic-position.js`. Server persistence is handled by
-`scripts/cue_api.php`. Print-only cue rendering remains a separate
-implementation in `js/pdf-export.js` and must stay semantically consistent with
-the live view.
+coordinated in `js/main.js`. The cue creation and editing interface is
+encapsulated in the `<cue-editor-dialog>` Web Component
+(`js/components/cue-editor-dialog.js` and `js/components/cue-editor-dialog.scss`),
+with add-cue controls hosted in `<toolbar-sync>` (`js/components/toolbar-sync.js`).
+Visual styling is defined in `css/teleprompter.scss` and `cue-editor-dialog.scss`.
+Shared live text-node enumeration, word indexing, and trigger-word wrapping are in
+`js/cue-text.js`; anchor positioning uses `js/semantic-position.js`. Server
+persistence is handled by `scripts/cue_api.php`. Print-only cue rendering remains a
+separate implementation in `js/pdf-export.js` and must stay semantically
+consistent with the live view.
 
 ## Storage format
 

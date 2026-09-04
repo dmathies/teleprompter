@@ -1,0 +1,114 @@
+@use "../../css/variables" as *;
+
+#settingsBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: $z-dialog-backdrop;
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  touch-action: none;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+#settingsPanel {
+  position: fixed;
+  z-index: $z-dialog-panel;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(480px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: 16px;
+  border: 1px solid $border-color-panel;
+  border-radius: $panel-radius;
+  background: $color-bg-panel;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.78);
+  color: $color-text-primary;
+  font-size: 16px;
+  pointer-events: auto;
+  touch-action: manipulation;
+
+  &[hidden] {
+    display: none;
+  }
+
+  h3 {
+    margin: 0 0 12px;
+    font-size: 19px;
+  }
+
+  .settings-row {
+    display: grid;
+    grid-template-columns: minmax(130px, 1fr) minmax(150px, 1.4fr);
+    gap: 12px;
+    align-items: center;
+    margin: 12px 0;
+  }
+
+  label {
+    color: $color-text-secondary;
+  }
+
+  select,
+  input[type="range"] {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  select {
+    height: 36px;
+    padding: 0 8px;
+    border: 1px solid $border-color-default;
+    border-radius: 5px;
+    background: $color-bg-input;
+    color: $color-text-primary;
+  }
+}
+
+#settingsMarginControls[aria-disabled="true"] {
+  opacity: 0.45;
+
+  select,
+  input {
+    pointer-events: none;
+  }
+}
+
+#annotationMarginWidthValue {
+  color: $color-text-muted;
+  font-variant-numeric: tabular-nums;
+}
+
+#settingsSaveStatus {
+  min-height: 1.2em;
+  color: $color-text-muted;
+  font-size: 13px;
+  flex: 1;
+
+  &.error {
+    color: $color-sync-error;
+  }
+}
+
+#settingsActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+#settingsDoneBtn {
+  min-width: 90px;
+  min-height: 38px;
+}
+
+@media (max-width: 520px) {
+  #settingsPanel .settings-row {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+}

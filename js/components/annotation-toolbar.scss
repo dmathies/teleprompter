@@ -1,0 +1,68 @@
+@use "../../css/variables" as *;
+
+#annotationTools {
+  position: fixed;
+  right: 34px;
+  top: calc(64px + env(safe-area-inset-top));
+  z-index: $z-annotation-tools;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px;
+  border: 1px solid $border-color-default;
+  border-radius: 8px;
+  background: rgba(18, 18, 18, 0.96);
+  box-shadow: 0 5px 24px rgba(0, 0, 0, 0.65);
+  font-size: 14px;
+  flex-wrap: wrap;
+  max-width: min(700px, calc(100vw - 48px));
+
+  &[hidden] {
+    display: none !important;
+  }
+
+  button {
+    min-width: 38px;
+    min-height: 36px;
+    font-size: 19px;
+    border-radius: 5px;
+    border: 1px solid $border-color-default;
+    background: $color-bg-input;
+    color: $color-text-primary;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    &.active {
+      outline: 2px solid $color-text-primary;
+      background: $color-bg-active;
+    }
+
+    svg {
+      width: 1.15em;
+      height: 1.15em;
+      display: inline-block;
+      vertical-align: middle;
+      fill: currentColor;
+      pointer-events: none;
+    }
+  }
+
+  input[type="color"] {
+    width: 42px;
+    height: 34px;
+    padding: 1px;
+    background: $color-bg-input;
+    border: 1px solid $border-color-default;
+  }
+}
+
+#annotationWidth {
+  width: 90px;
+}
+
+#annotationSyncStatus {
+  color: $color-text-muted;
+  min-width: 75px;
+  white-space: nowrap;
+}

@@ -2,22 +2,34 @@ import { contrastingTextColor } from "./utils.js";
 import { normalizeSemanticPosition } from "./semantic-position.js";
 
 export function createPdfExporter(deps) {
-  const { exportStatus, exportDepartment, exportPanel, exportBackdrop, exportCues, exportAnnotations, exportStageDirections, exportOpenBtn, ALLOWED_DEPARTMENTS, CUE_API_ENDPOINT, ANNOTATION_API_ENDPOINT, SETTINGS_API_ENDPOINT, SCRIPT_GET_ENDPOINT, normalizeDepartmentMargin, departmentDefaultColor, getCurrentScriptId, getActiveDepartment, getAvailableScripts } = deps;
+  const { exportDialog, exportStatus, exportDepartment, exportPanel, exportBackdrop, exportCues, exportAnnotations, exportStageDirections, exportOpenBtn, ALLOWED_DEPARTMENTS, CUE_API_ENDPOINT, ANNOTATION_API_ENDPOINT, SETTINGS_API_ENDPOINT, SCRIPT_GET_ENDPOINT, normalizeDepartmentMargin, departmentDefaultColor, getCurrentScriptId, getActiveDepartment, getAvailableScripts } = deps;
 
   function openExportPanel() {
         if (!getCurrentScriptId()) return;
-        exportStatus.textContent = "";
-        exportStatus.className = "";
-        exportDepartment.value = getActiveDepartment() || "ALL";
-        exportPanel.hidden = false;
-        exportBackdrop.hidden = false;
+        if (exportDialog) {
+          exportDialog.show(getActiveDepartment() || "ALL");
+          return;
+        }
+        if (exportStatus) {
+          exportStatus.textContent = "";
+          exportStatus.className = "";
+        }
+        if (exportDepartment) exportDepartment.value = getActiveDepartment() || "ALL";
+        if (exportPanel) exportPanel.hidden = false;
+        if (exportBackdrop) exportBackdrop.hidden = false;
       }
 
       function closeExportPanel() {
-        exportPanel.hidden = true;
-        exportBackdrop.hidden = true;
-        exportStatus.textContent = "";
-        exportStatus.className = "";
+        if (exportDialog) {
+          exportDialog.close();
+          return;
+        }
+        if (exportPanel) exportPanel.hidden = true;
+        if (exportBackdrop) exportBackdrop.hidden = true;
+        if (exportStatus) {
+          exportStatus.textContent = "";
+          exportStatus.className = "";
+        }
       }
 
       async function fetchExportDepartmentData(script, department) {
@@ -117,8 +129,14 @@ export function createPdfExporter(deps) {
             badge.className = 'print-cue-marker';
             badge.style.setProperty('--cue-color', color);
             badge.style.setProperty('--cue-text-color', contrastingTextColor(color));
-            badge.innerHTML = '<strong>' + exportEscapeHtml(doc.department + ' ' + (cue.number || '')) + '</strong>' +
-              (cue.description ? '<span>' + exportEscapeHtml(cue.description) + '</span>' : '');
+            const strong = root.ownerDocument.createElement('strong');
+            strong.textContent = doc.department + ' ' + (cue.number || '');
+            badge.appendChild(strong);
+            if (cue.description) {
+              const desc = root.ownerDocument.createElement('span');
+              desc.textContent = cue.description;
+              badge.appendChild(desc);
+            }
             holder.appendChild(badge);
             exportWrapTrigger(block, cue, doc.department);
 
@@ -362,12 +380,12 @@ export function createPdfExporter(deps) {
         }
       }
 
-      async function buildPdfExport(printWindow) {
-        const selected = exportDepartment.value;
+      async function buildPdfExport(printWindow, exportOptions = null) {
+        const selected = (exportOptions && exportOptions.department) || (exportDialog && exportDialog.department) || (exportDepartment && exportDepartment.value) || 'ALL';
         const departments = selected === 'ALL' ? ALLOWED_DEPARTMENTS.slice() : (selected === 'NONE' ? [] : [selected]);
-        const includeCues = exportCues.checked && departments.length > 0;
-        const includeAnnotations = exportAnnotations.checked && departments.length > 0;
-        const stageMode = exportStageDirections.value;
+        const includeCues = ((exportOptions && exportOptions.exportCues !== undefined) ? exportOptions.exportCues : (exportDialog ? exportDialog.exportCues : (exportCues && exportCues.checked))) && departments.length > 0;
+        const includeAnnotations = ((exportOptions && exportOptions.exportAnnotations !== undefined) ? exportOptions.exportAnnotations : (exportDialog ? exportDialog.exportAnnotations : (exportAnnotations && exportAnnotations.checked))) && departments.length > 0;
+        const stageMode = (exportOptions && exportOptions.stageDirections) || (exportDialog && exportDialog.stageDirections) || (exportStageDirections && exportStageDirections.value) || 'all';
 
         const scriptResponse = await fetch(SCRIPT_GET_ENDPOINT + '?id=' + encodeURIComponent(getCurrentScriptId()) + '&_=' + Date.now(), {cache:'no-store'});
         if (!scriptResponse.ok) throw new Error('Could not load script for export');
@@ -411,28 +429,52 @@ export function createPdfExporter(deps) {
         printWindow.focus();
       }
 
-      async function startPdfExport() {
+      async function startPdfExport(exportOptions = null) {
         if (!getCurrentScriptId()) return;
         const printWindow=window.open('', '_blank');
         if (!printWindow) {
-          exportStatus.textContent='Pop-up blocked. Allow pop-ups for this site and try again.';
-          exportStatus.className='error';
+          const msg = 'Pop-up blocked. Allow pop-ups for this site and try again.';
+          if (exportDialog) {
+            exportDialog.status = msg;
+            exportDialog.isError = true;
+          } else if (exportStatus) {
+            exportStatus.textContent = msg;
+            exportStatus.className = 'error';
+          }
           return;
         }
         printWindow.document.write('<!doctype html><title>Preparing PDF…</title><body style="font:16px Arial;padding:24px">Preparing marked-up script…</body>');
         printWindow.document.close();
-        exportOpenBtn.disabled=true;
-        exportStatus.textContent='Preparing print view…';
-        exportStatus.className='';
+        if (exportDialog) {
+          exportDialog.busy = true;
+          exportDialog.status = 'Preparing print view…';
+          exportDialog.isError = false;
+        } else {
+          if (exportOpenBtn) exportOpenBtn.disabled = true;
+          if (exportStatus) {
+            exportStatus.textContent = 'Preparing print view…';
+            exportStatus.className = '';
+          }
+        }
         try {
-          await buildPdfExport(printWindow);
+          await buildPdfExport(printWindow, exportOptions);
           closeExportPanel();
         } catch (err) {
           try { printWindow.close(); } catch (_) {}
-          exportStatus.textContent=err && err.message ? err.message : 'Could not prepare PDF export.';
-          exportStatus.className='error';
+          const msg = err && err.message ? err.message : 'Could not prepare PDF export.';
+          if (exportDialog) {
+            exportDialog.status = msg;
+            exportDialog.isError = true;
+          } else if (exportStatus) {
+            exportStatus.textContent = msg;
+            exportStatus.className = 'error';
+          }
         } finally {
-          exportOpenBtn.disabled=false;
+          if (exportDialog) {
+            exportDialog.busy = false;
+          } else if (exportOpenBtn) {
+            exportOpenBtn.disabled = false;
+          }
         }
       }
 

@@ -1,12 +1,16 @@
 # Annotations
 
-`js/main.js` coordinates live annotation input and synchronization.
-`js/annotation-store.js` owns IndexedDB document caching and the offline
-operation queue; `js/annotation-geometry.js` owns live coordinate conversion,
-scaling, SVG shape construction, and layer cleanup. Screen styles are in
-`css/teleprompter.css`, and server persistence is handled by
-`scripts/annotation_api.php`. Print annotation rendering remains separately
-implemented in `js/pdf-export.js`.
+`js/main.js` coordinates live annotation input and synchronization. The
+annotation drawing palette is encapsulated in the `<annotation-toolbar>` Web
+Component (`js/components/annotation-toolbar.js` and
+`js/components/annotation-toolbar.scss`), with its activation toggle hosted in
+`<toolbar-sync>` (`js/components/toolbar-sync.js`). `js/annotation-store.js`
+owns IndexedDB document caching and the offline operation queue;
+`js/annotation-geometry.js` owns live coordinate conversion, scaling, SVG shape
+construction, and layer cleanup. Screen styles are defined in
+`css/teleprompter.scss` and `annotation-toolbar.scss`, and server persistence is
+handled by `scripts/annotation_api.php`. Print annotation rendering remains
+separately implemented in `js/pdf-export.js`.
 
 ## Data model
 

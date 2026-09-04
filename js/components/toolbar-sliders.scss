@@ -1,0 +1,23 @@
+@use "../../css/variables" as *;
+
+#speedControl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+#status {
+  color: $color-text-muted;
+  margin-left: 8px;
+  min-width: 220px;
+}
+
+@media (max-width: 760px) {
+  #status {
+    min-width: 0;
+  }
+}

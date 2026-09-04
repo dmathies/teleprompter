@@ -1,0 +1,107 @@
+@use "../../css/variables" as *;
+
+.sync-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#deptLabel {
+  font-weight: 700;
+  color: $color-text-secondary;
+  min-width: 28px;
+  text-align: right;
+}
+
+#addCueBtn[hidden],
+#nextCueBtn[hidden] {
+  display: none !important;
+}
+
+#addCueBtn svg,
+#nextCueBtn svg {
+  width: 0.85em;
+  height: 0.85em;
+}
+
+.password-panel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid $border-color-default;
+  border-radius: $btn-radius;
+  background: $color-bg-panel-alt;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+#masterPassword {
+  width: 150px;
+  background: $color-bg-input;
+  color: $color-text-primary;
+  border: 1px solid $border-color-default;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 15px;
+}
+
+#masterBtn.master-active {
+  color: $color-sync-ok;
+  border-color: $color-master-active-border;
+  background: $color-master-active-bg;
+}
+
+#rejoinBtn[disabled] {
+  opacity: 0.45;
+}
+
+#syncStatus {
+  color: $color-text-muted;
+  min-width: 170px;
+  white-space: nowrap;
+
+  &.ok {
+    color: $color-sync-ok;
+  }
+  &.warn {
+    color: $color-sync-warn;
+  }
+  &.error {
+    color: $color-sync-error;
+  }
+}
+
+#masterHealthStatus {
+  color: $color-text-muted;
+  white-space: nowrap;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+
+  .health-ok {
+    color: $color-sync-ok;
+  }
+  .health-warn {
+    color: $color-sync-warn;
+  }
+  .health-error {
+    color: $color-sync-error;
+    font-weight: 700;
+  }
+  .health-idle {
+    color: $color-sync-idle;
+  }
+}
+
+@media (max-width: 760px) {
+  #syncStatus {
+    min-width: 0;
+    font-size: 13px !important;
+  }
+
+  #masterHealthStatus {
+    font-size: 12px !important;
+  }
+}

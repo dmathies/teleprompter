@@ -1,11 +1,17 @@
 # Master/follower synchronization
 
-Synchronization control flow and transport handling are in `js/main.js`.
+Synchronization control flow and transport handling are coordinated in
+`js/main.js`. Live synchronization controls, ASM/department mode toggles,
+rejoin actions, and connection health badges are encapsulated in the
+`<toolbar-sync>` Web Component (`js/components/toolbar-sync.js`). Playback and
+speed controls are in `<toolbar-transport>` and `<toolbar-sliders>`.
 `js/semantic-position.js` owns prompt/fraction capture and DOM mapping, while
 `js/sync-protocol.js` owns delivery-age validation and motion signatures. The
 sync and SSE PHP endpoints are `scripts/teleprompter_sync.php` and
-`scripts/teleprompter_events.php`. Synchronization is not implemented in the
-HTML shell or the PDF-export module.
+`scripts/teleprompter_events.php`. During development via Vite (`import.meta.env.DEV`),
+requests route to `http://localhost:8000` to reach the local PHP backend; in
+production builds, requests use same-origin relative URLs. Synchronization is
+not implemented in the HTML shell or the PDF-export module.
 
 ## Semantic position
 

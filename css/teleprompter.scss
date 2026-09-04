@@ -1,0 +1,555 @@
+@use "variables" as *;
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: $color-bg-base;
+  color: $color-text-primary;
+  overflow: hidden;
+  font-family: $font-family-base;
+}
+
+#toolbar {
+  position: fixed;
+  top: $context-header-height;
+  left: 0;
+  right: 0;
+  min-height: $toolbar-height;
+  background: $color-bg-toolbar;
+  border-bottom: 1px solid $border-color-subtle;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: calc(8px + env(safe-area-inset-top)) 12px 8px 12px;
+  box-sizing: border-box;
+  z-index: $z-toolbar;
+  transition: opacity .28s ease, transform .28s ease;
+
+  button,
+  input,
+  label,
+  div {
+    font-size: 16px;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+}
+
+toolbar-transport,
+toolbar-display,
+toolbar-navigation,
+toolbar-sync,
+toolbar-sliders {
+  display: contents;
+}
+
+.icon-btn {
+  min-width: 40px;
+  height: 38px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 18px !important;
+  line-height: 1;
+  border-radius: $btn-radius;
+  cursor: pointer;
+
+  svg {
+    width: 1.15em;
+    height: 1.15em;
+    display: inline-block;
+    vertical-align: middle;
+    fill: currentColor;
+    pointer-events: none;
+  }
+
+  &:disabled {
+    opacity: .38;
+    cursor: default;
+  }
+}
+
+.compact-label {
+  color: $color-text-subtle;
+  font-size: 13px !important;
+}
+
+body.toolbar-hidden #toolbar {
+  opacity: 0;
+  transform: translateY(-110%);
+  pointer-events: none;
+}
+
+body.follow-paused {
+  #toolbar {
+    box-shadow: inset 0 -4px 0 #d22, 0 5px 14px rgba(0, 0, 0, .6);
+  }
+
+  #syncStatus {
+    color: #fff !important;
+    background: #a00;
+    border-radius: 4px;
+    padding: 4px 7px;
+    font-weight: 800;
+    cursor: pointer;
+    pointer-events: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  #toolbar {
+    gap: 6px;
+  }
+
+  .icon-btn {
+    min-width: 38px;
+    height: 36px;
+    padding: 0 8px;
+  }
+
+  .compact-label {
+    display: none;
+  }
+}
+
+#viewport {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: $overview-rail-width;
+  bottom: 0;
+  overflow: hidden;
+  background: $color-bg-base;
+  cursor: default;
+  touch-action: none;
+  user-select: none;
+}
+
+body.overview-rail-left #viewport {
+  left: $overview-rail-width;
+  right: 0;
+}
+
+#content {
+  box-sizing: border-box;
+  padding: 4px;
+  font-size: 42px;
+  line-height: 1.4;
+  --annotation-margin-left: 0px;
+  --annotation-margin-right: 0px;
+
+  /* Annotation margins indent semantic script blocks while cue overlays keep
+     the full available width. The per-block variables also provide the
+     coordinate origin used by annotation rendering. */
+  > [data-prompt-id] {
+    --script-block-left-inset: var(--annotation-margin-left);
+    --script-block-right-inset: var(--annotation-margin-right);
+    box-sizing: border-box;
+    padding-left: var(--script-block-left-inset);
+    padding-right: var(--script-block-right-inset);
+  }
+
+  .stage-direction.stage-direction-forced,
+  .stage-inline.stage-direction-forced {
+    display: block !important;
+  }
+
+  .stage-inline.stage-direction-forced {
+    display: inline !important;
+  }
+}
+
+.cue {
+  margin-bottom: 1em;
+}
+
+.character {
+  color: $color-character;
+  font-weight: bold;
+}
+
+.dialog {
+  color: $color-text-primary;
+}
+
+.lyrics-block {
+  margin-top: .1em;
+  margin-bottom: .1em;
+}
+
+.lyrics-speaker {
+  color: $color-character;
+  font-weight: bold;
+  display: block;
+  text-align: center;
+  margin-bottom: 0.3em;
+}
+
+.lyrics {
+  color: $color-lyrics;
+  margin-left: .5em;
+}
+
+.scene-heading {
+  margin-top: 1.2em;
+  margin-bottom: .65em;
+  text-align: center;
+  font-size: 1.12em;
+}
+
+.song-heading {
+  margin-top: .9em;
+  margin-bottom: .45em;
+  text-align: center;
+}
+
+/* Master unattended-autoscroll warning. This is a pure visual overlay:
+   no layout change and it never intercepts mouse/touch input. */
+#masterIdleBorder {
+  position: fixed;
+  inset: 0;
+  z-index: $z-master-border;
+  pointer-events: none;
+  opacity: 0;
+  --idle-border-rgb: 255, 220, 0;
+  --idle-border-alpha: 0;
+  background:
+    linear-gradient(to bottom,
+      rgba(var(--idle-border-rgb), var(--idle-border-alpha)) 0,
+      rgba(var(--idle-border-rgb), 0) 5mm) top / 100% 5mm no-repeat,
+    linear-gradient(to top,
+      rgba(var(--idle-border-rgb), var(--idle-border-alpha)) 0,
+      rgba(var(--idle-border-rgb), 0) 5mm) bottom / 100% 5mm no-repeat,
+    linear-gradient(to right,
+      rgba(var(--idle-border-rgb), var(--idle-border-alpha)) 0,
+      rgba(var(--idle-border-rgb), 0) 5mm) left / 5mm 100% no-repeat,
+    linear-gradient(to left,
+      rgba(var(--idle-border-rgb), var(--idle-border-alpha)) 0,
+      rgba(var(--idle-border-rgb), 0) 5mm) right / 5mm 100% no-repeat;
+  transition: opacity .18s linear;
+}
+
+/* Department cue layer */
+.prompt-with-cues {
+  position: relative;
+}
+
+#content > .prompt-with-cues {
+  --script-block-left-inset: calc(var(--annotation-margin-left) + 10px);
+}
+
+#content > [data-prompt-id] > .cue-markers {
+  box-sizing: border-box;
+  width: calc(100% + var(--script-block-left-inset) + var(--script-block-right-inset));
+  margin-left: calc(0px - var(--script-block-left-inset));
+  margin-right: calc(0px - var(--script-block-right-inset));
+}
+
+.cue-range-line {
+  position: absolute;
+  left: 0;
+  width: 5px;
+  pointer-events: none;
+  z-index: $z-cue-connector;
+  background: var(--cue-color, $color-cue-default);
+}
+
+.cue-markers {
+  display: block;
+  margin: 0 0 5px 0;
+  font-size: .42em;
+  line-height: 1.15;
+  position: relative;
+  z-index: $z-cue-markers;
+}
+
+.cue-marker {
+  display: flex;
+  width: 100% !important;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  margin: 0 0 4px 0;
+  padding: 7px 10px !important;
+  border: 0 !important;
+  border-radius: 4px;
+  background: var(--cue-color, $color-cue-default) !important;
+  color: var(--cue-text-color, $color-text-dark) !important;
+  font-weight: 800;
+  white-space: nowrap;
+
+  .cue-number {
+    color: inherit !important;
+    font-weight: 900;
+    min-width: 4.5em;
+  }
+
+  &.cue-editable {
+    cursor: pointer;
+    outline: 2px solid rgba(255, 255, 255, .45);
+    outline-offset: -2px;
+  }
+}
+
+.cue-trigger-word {
+  position: relative;
+  z-index: 2;
+  padding: 0 .08em;
+  margin-left: .04em;
+  background: color-mix(in srgb, var(--cue-color, $color-cue-default) 58%, transparent);
+  border-left: 2px solid var(--cue-color, currentColor);
+  border-radius: 1px 2px 2px 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.cue-connector-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: $z-cue-connector;
+}
+
+.cue-connector-line {
+  stroke-width: 2;
+  opacity: .42;
+  vector-effect: non-scaling-stroke;
+}
+
+body.cue-word-pick {
+  cursor: crosshair;
+
+  #content [data-prompt-id] {
+    cursor: crosshair;
+  }
+}
+
+/* Vector script annotations */
+.prompt-with-annotations {
+  position: relative;
+}
+
+.annotation-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible !important;
+  pointer-events: none;
+  z-index: $z-annotation-layer;
+}
+
+.annotation-shape {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.annotation-text {
+  font-family: $font-family-base;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, .9);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+body.annotation-mode {
+  #viewport,
+  #content [data-prompt-id] {
+    cursor: crosshair;
+  }
+}
+
+body.annotation-erase {
+  .annotation-layer {
+    pointer-events: auto;
+  }
+
+  .annotation-shape,
+  .annotation-text {
+    pointer-events: all;
+    cursor: not-allowed;
+  }
+}
+
+/* Persistent script context */
+#contextHeader {
+  position: fixed;
+  z-index: $z-context-header;
+  top: 0;
+  left: 0;
+  right: $overview-rail-width;
+  height: $context-header-height;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 0 10px;
+  background: rgba(10, 10, 10, .96);
+  border-bottom: 1px solid $border-color-default;
+  color: #ddd;
+  font: 600 14px/1.1 $font-family-base;
+  pointer-events: none;
+}
+
+body.overview-rail-left #contextHeader {
+  left: $overview-rail-width;
+  right: 0;
+}
+
+#headerScene {
+  color: $color-text-primary;
+  max-width: 48vw;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Whole-script overview rail, similar to an IDE overview/minimap gutter. */
+#overviewRail {
+  position: fixed;
+  z-index: $z-overview-rail;
+  top: $context-header-height;
+  right: 0;
+  bottom: 0;
+  width: $overview-rail-width;
+  background: rgba(30, 30, 30, .92);
+  border-left: 1px solid $border-color-default;
+  cursor: pointer;
+  touch-action: none;
+}
+
+body.overview-rail-left #overviewRail {
+  left: 0;
+  right: auto;
+  border-left: 0;
+  border-right: 1px solid $border-color-default;
+}
+
+#overviewMarkers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.overview-mark {
+  position: absolute;
+  right: 1px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  min-height: 2px;
+
+  &.act {
+    left: 1px;
+    height: 4px;
+    background: #fff;
+  }
+
+  &.scene {
+    left: 6px;
+    height: 2px;
+    background: #aaa;
+  }
+
+  &.cue {
+    left: 2px;
+    height: 4px;
+  }
+
+  &.annotation {
+    left: 10px;
+    right: 1px;
+    height: 5px;
+    border-radius: 50%;
+  }
+
+  &.master-position {
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: $color-master-position;
+    box-shadow: 0 0 4px rgba(55, 155, 255, .9);
+    z-index: 8;
+  }
+
+  &.cue-end {
+    left: 7px;
+    right: 1px;
+    height: 2px;
+    opacity: .8;
+  }
+}
+
+#overviewViewportIndicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  min-height: 10px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, .95);
+  background: rgba(255, 255, 255, .14);
+  pointer-events: none;
+}
+
+/* Position lines and end markers */
+#masterPositionLine,
+#cueStartPositionLine,
+#cueEndPositionLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 11px;
+  pointer-events: none;
+  z-index: $z-master-position;
+  transform: translateY(-1px);
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+#masterPositionLine {
+  background: linear-gradient(to bottom, rgba(55, 155, 255, .95) 0, rgba(55, 155, 255, .45) 2px, rgba(55, 155, 255, 0) 10px);
+}
+
+#cueStartPositionLine {
+  background: linear-gradient(to bottom, rgba(255, 208, 0, .95) 0, rgba(255, 208, 0, .35) 2px, rgba(255, 208, 0, 0) 10px);
+}
+
+#cueEndPositionLine {
+  background: linear-gradient(to bottom, rgba(190, 190, 190, .95) 0, rgba(190, 190, 190, .35) 2px, rgba(190, 190, 190, 0) 10px);
+}
+
+.cue-end-marker {
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  margin: 0;
+  border-top: 2px dashed var(--cue-color, $color-cue-default);
+  color: var(--cue-color, $color-cue-default);
+  font: 700 12px/1.2 $font-family-base;
+  opacity: .85;
+  pointer-events: none;
+  z-index: $z-cue-end-marker;
+
+  span {
+    background: $color-bg-base;
+    padding: 0 5px;
+    position: relative;
+    top: -8px;
+  }
+}

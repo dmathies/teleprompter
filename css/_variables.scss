@@ -1,0 +1,63 @@
+// Global Colors
+$color-bg-base: #000000;
+$color-bg-toolbar: #111111;
+$color-bg-panel: #151515;
+$color-bg-panel-alt: #181818;
+$color-bg-input: #222222;
+$color-bg-btn-hover: #333333;
+$color-bg-active: #444444;
+$color-bg-backdrop: rgba(0, 0, 0, 0.55);
+
+// Border Colors
+$border-color-subtle: #333333;
+$border-color-default: #555555;
+$border-color-panel: #666666;
+$border-color-focus: #9ad0ff;
+
+// Text Colors
+$color-text-primary: #ffffff;
+$color-text-secondary: #cccccc;
+$color-text-muted: #aaaaaa;
+$color-text-subtle: #bbbbbb;
+$color-text-dark: #000000;
+
+// Semantic & Status Colors
+$color-cue-default: #ffd000;
+$color-lyrics: #00ffff;
+$color-character: #ffff00;
+$color-master-position: #379bff;
+
+$color-sync-ok: #88ff88;
+$color-sync-warn: #ffcc88;
+$color-sync-error: #ff8888;
+$color-sync-idle: #aaaaaa;
+
+$color-master-active-bg: #13251a;
+$color-master-active-border: #448866;
+$color-stage-direction-active-bg: #245477;
+
+// Z-Indices
+$z-content: 0;
+$z-cue-connector: 1;
+$z-cue-markers: 2;
+$z-cue-end-marker: 3;
+$z-annotation-layer: 4;
+$z-master-position: 15;
+$z-toolbar: 1000;
+$z-overview-rail: 1400;
+$z-context-header: 1500;
+$z-annotation-tools: 10020;
+$z-dialog-backdrop: 10025;
+$z-dialog-panel: 10030;
+$z-export-backdrop: 10035;
+$z-export-panel: 10040;
+$z-master-border: 20000;
+
+// Sizing & Layout
+$toolbar-height: 56px;
+$context-header-height: 34px;
+$overview-rail-width: 18px;
+$btn-radius: 6px;
+$panel-radius: 9px;
+$font-family-base: Arial, sans-serif;
+$font-family-mono: monospace;

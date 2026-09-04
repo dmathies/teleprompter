@@ -1,0 +1,6 @@
+@use "../../css/variables" as *;
+
+#stageDirectionsBtn.active {
+  outline: 2px solid $border-color-focus;
+  background: $color-stage-direction-active-bg;
+}

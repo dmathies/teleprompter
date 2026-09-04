@@ -1,0 +1,85 @@
+@use "../../css/variables" as *;
+
+#cueEditorPanel {
+  position: fixed;
+  z-index: $z-dialog-panel;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: 14px;
+  border: 1px solid $border-color-panel;
+  border-radius: $panel-radius;
+  background: $color-bg-panel;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.75);
+  color: $color-text-primary;
+  font-size: 16px;
+
+  &[hidden] {
+    display: none;
+  }
+
+  h3 {
+    margin: 0 0 10px;
+    font-size: 18px;
+  }
+
+  .cue-form-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 8px 0;
+
+    &.buttons {
+      align-items: flex-start;
+    }
+  }
+
+  label {
+    min-width: 90px;
+    color: $color-text-subtle;
+  }
+
+  input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    background: $color-bg-input;
+    color: $color-text-primary;
+    border: 1px solid $border-color-default;
+    border-radius: 4px;
+    padding: 7px 8px;
+    font-size: 16px;
+  }
+
+  input[type="color"] {
+    width: 52px;
+    height: 34px;
+    padding: 1px;
+    background: $color-bg-input;
+    border: 1px solid $border-color-default;
+  }
+}
+
+#cueEditorActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+#cueAnchorInfo,
+#cueWordInfo,
+#cueEndInfo {
+  color: $color-text-muted;
+  font-family: $font-family-mono;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+#cueEditorError {
+  color: $color-sync-error;
+  min-height: 1.2em;
+  margin-top: 6px;
+}

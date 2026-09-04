@@ -16,3 +16,4 @@ show-annotations/*.json
 !show-annotations/.gitkeep
 /node_modules/
 /dist/
+/css/teleprompter.css

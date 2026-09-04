@@ -1,11 +1,14 @@
 # Display settings
 
-The gear button opens a modal for display settings. Settings apply immediately
-and preserve the current semantic script position while the layout reflows.
-The dialog markup is in `teleprompter.html`, its visual rules are in
-`css/teleprompter.css`, client state and event handling are in `js/main.js`, and
-central settings are served by `scripts/settings_api.php`. Export consumes the
-same central settings through `js/pdf-export.js`.
+The gear button on `<toolbar-display>` (`js/components/toolbar-display.js`) opens
+a modal for display settings. Settings apply immediately and preserve the current
+semantic script position while the layout reflows. The dialog is implemented as
+the `<settings-dialog>` Web Component (`js/components/settings-dialog.js` and
+`js/components/settings-dialog.scss`), mounted in `../teleprompter_v2.html`. Its
+visual rules are in `css/teleprompter.scss` and `settings-dialog.scss`, client
+state and event handling are coordinated in `js/main.js`, and central settings are
+served by `scripts/settings_api.php`. Export consumes the same central settings
+through `js/pdf-export.js`.
 
 ## Storage and scope
 
