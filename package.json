@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node dev_scripts/dev.js",
+    "dev:vite": "vite",
+    "php": "node dev_scripts/start-php.js",
     "build": "vite build",
     "preview": "vite preview"
   },

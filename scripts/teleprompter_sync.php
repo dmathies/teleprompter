@@ -32,16 +32,26 @@ function getHeaderValue(string $name): string {
 function valid_session_id($id): bool {
     return is_string($id) && strlen($id) >= 8 && strlen($id) <= 160 && preg_match('/^[A-Za-z0-9._:-]+$/', $id);
 }
+function flock_with_timeout($fp, int $operation, float $timeoutSeconds = 2.0): bool {
+    $start = microtime(true);
+    do {
+        if (@flock($fp, $operation | LOCK_NB)) {
+            return true;
+        }
+        usleep(10000); // 10ms backoff
+    } while ((microtime(true) - $start) < $timeoutSeconds);
+    return false;
+}
 function read_json_locked(string $file): ?array {
     if (!is_file($file)) return null;
     $fp = @fopen($file, 'r'); if (!$fp) return null;
-    if (!@flock($fp, LOCK_SH)) { fclose($fp); return null; }
+    if (!flock_with_timeout($fp, LOCK_SH)) { fclose($fp); return null; }
     $json = stream_get_contents($fp); flock($fp, LOCK_UN); fclose($fp);
     $v = json_decode((string)$json, true); return is_array($v) ? $v : null;
 }
 function write_json_locked(string $file, array $data): bool {
     $fp = @fopen($file, 'c+'); if (!$fp) return false;
-    if (!@flock($fp, LOCK_EX)) { fclose($fp); return false; }
+    if (!flock_with_timeout($fp, LOCK_EX)) { fclose($fp); return false; }
     ftruncate($fp,0); rewind($fp);
     $ok = fwrite($fp, json_encode($data, JSON_UNESCAPED_SLASHES)) !== false;
     fflush($fp); flock($fp, LOCK_UN); fclose($fp); return $ok;

@@ -18,4 +18,12 @@ export default defineConfig({
       },
     },
   },
+  server: {
+    proxy: {
+      '/scripts': {
+        target: 'http://localhost:4805',
+        changeOrigin: true,
+      }
+    }
+  }
 });

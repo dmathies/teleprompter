@@ -9,8 +9,8 @@ of lightweight PHP endpoints with filesystem persistence and deliberately has no
 application database.
 
 During development, Vite serves native ES modules with Hot Module Replacement
-(HMR). When running in dev mode (`import.meta.env.DEV`), API calls target
-`http://localhost:8000`, where a local PHP server (`php -S localhost:8000`) runs.
+(HMR). When running in dev mode, API requests to `/scripts` are proxied by Vite to
+`http://localhost:4805`, where a local PHP server (`php -S localhost:4805`) runs.
 For deployment, `npm run build` compiles and bundles the client into `dist/`.
 
 | Client file | Responsibility |

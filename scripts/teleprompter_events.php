@@ -52,7 +52,8 @@ function read_state_locked(string $file): ?array {
     $fp = @fopen($file, 'r');
     if ($fp === false) return null;
 
-    if (!@flock($fp, LOCK_SH)) {
+    // Use non-blocking read lock so readers never block writers or stall the event loop.
+    if (!@flock($fp, LOCK_SH | LOCK_NB)) {
         fclose($fp);
         return null;
     }
