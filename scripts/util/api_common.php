@@ -79,6 +79,52 @@ function writeJsonLocked(string $file, array $data, bool $pretty = false): bool 
     return $ok;
 }
 
+function mutateJsonLocked(string $file, callable $mutator, bool $pretty = false): ?array {
+    $dir = dirname($file);
+    if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+        return null;
+    }
+    $fp = @fopen($file, 'c+');
+    if (!$fp) return null;
+    if (!flockWithTimeout($fp, LOCK_EX)) {
+        fclose($fp);
+        return null;
+    }
+
+    try {
+        rewind($fp);
+        $raw = stream_get_contents($fp);
+        $existing = ($raw !== false && trim($raw) !== '') ? json_decode($raw, true) : null;
+        if (!is_array($existing)) $existing = null;
+
+        $updated = $mutator($existing);
+        if (!is_array($updated)) {
+            flock($fp, LOCK_UN);
+            fclose($fp);
+            return null;
+        }
+
+        rewind($fp);
+        ftruncate($fp, 0);
+        $flags = JSON_UNESCAPED_SLASHES;
+        if ($pretty) $flags |= JSON_PRETTY_PRINT;
+        $encoded = json_encode($updated, $flags);
+        if ($encoded === false || fwrite($fp, $encoded . ($pretty ? "\n" : "")) === false) {
+            flock($fp, LOCK_UN);
+            fclose($fp);
+            return null;
+        }
+        fflush($fp);
+        flock($fp, LOCK_UN);
+        fclose($fp);
+        return $updated;
+    } catch (Throwable $e) {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+        return null;
+    }
+}
+
 function loadPasswords(): array {
     $passwordConfig = require dirname(__DIR__) . '/passwords.php';
     if (!is_array($passwordConfig)) {

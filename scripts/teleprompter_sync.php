@@ -53,14 +53,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $now = microtime(true);
-        $current = readJsonLocked($controlFile);
-        $activeOther = $current && isset($current['sessionId'], $current['lastSeen']) &&
-            $current['sessionId'] !== $sessionId && ($now - (float)$current['lastSeen']) < $MASTER_LEASE_SECONDS;
-        if ($activeOther && !$force) {
+        $claimConflict = false;
+        $activeOther = false;
+
+        $control = mutateJsonLocked($controlFile, function($current) use ($sessionId, $force, $now, $MASTER_LEASE_SECONDS, &$claimConflict, &$activeOther) {
+            $hasActiveOther = $current && isset($current['sessionId'], $current['lastSeen']) &&
+                $current['sessionId'] !== $sessionId && ($now - (float)$current['lastSeen']) < $MASTER_LEASE_SECONDS;
+            $activeOther = (bool)$hasActiveOther;
+
+            if ($hasActiveOther && !$force) {
+                $claimConflict = true;
+                return $current; // Do not overwrite active lease
+            }
+
+            return ['sessionId' => $sessionId, 'claimedAt' => $now, 'lastSeen' => $now];
+        });
+
+        if ($claimConflict) {
             respondJson(409, ['ok' => false, 'error' => 'Another master is active', 'active' => true]);
         }
-        $control = ['sessionId' => $sessionId, 'claimedAt' => $now, 'lastSeen' => $now];
-        if (!writeJsonLocked($controlFile, $control)) {
+        if (!$control) {
             respondJson(500, ['error' => 'Could not save master control']);
         }
         respondJson(200, ['ok' => true, 'takenOver' => $activeOther, 'serverTime' => $now]);

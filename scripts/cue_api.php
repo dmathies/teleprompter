@@ -159,34 +159,38 @@ if (!isValidId($script) || !isset($catalog[$script])) {
 }
 
 $file = cueFile($cueDir, $script, $dept);
-$rawDoc = readJsonLocked($file);
-$doc = normalizeCueDoc($rawDoc, $script, $dept);
 
-if ($action === 'save') {
-    $cue = validateCue(isset($data['cue']) && is_array($data['cue']) ? $data['cue'] : []);
-    if ($cue['id'] === '') $cue['id'] = strtolower($dept) . '-' . bin2hex(random_bytes(8));
+$updatedDoc = mutateJsonLocked($file, function($rawDoc) use ($action, $data, $script, $dept) {
+    $doc = normalizeCueDoc($rawDoc, $script, $dept);
 
-    $found = false;
-    foreach ($doc['cues'] as $i => $existing) {
-        if (is_array($existing) && ($existing['id'] ?? null) === $cue['id']) {
-            $doc['cues'][$i] = $cue;
-            $found = true;
-            break;
+    if ($action === 'save') {
+        $cue = validateCue(isset($data['cue']) && is_array($data['cue']) ? $data['cue'] : []);
+        if ($cue['id'] === '') $cue['id'] = strtolower($dept) . '-' . bin2hex(random_bytes(8));
+
+        $found = false;
+        foreach ($doc['cues'] as $i => $existing) {
+            if (is_array($existing) && ($existing['id'] ?? null) === $cue['id']) {
+                $doc['cues'][$i] = $cue;
+                $found = true;
+                break;
+            }
         }
+        if (!$found) $doc['cues'][] = $cue;
+    } elseif ($action === 'delete') {
+        $id = isset($data['id']) ? (string)$data['id'] : '';
+        if (!preg_match('/^[A-Za-z0-9_-]{1,80}$/', $id)) respondJson(400, ['ok' => false, 'error' => 'Invalid cue id']);
+        $doc['cues'] = array_values(array_filter($doc['cues'], fn($c) => !is_array($c) || ($c['id'] ?? null) !== $id));
+    } else {
+        respondJson(404, ['ok' => false, 'error' => 'Unknown action']);
     }
-    if (!$found) $doc['cues'][] = $cue;
-} elseif ($action === 'delete') {
-    $id = isset($data['id']) ? (string)$data['id'] : '';
-    if (!preg_match('/^[A-Za-z0-9_-]{1,80}$/', $id)) respondJson(400, ['ok' => false, 'error' => 'Invalid cue id']);
-    $doc['cues'] = array_values(array_filter($doc['cues'], fn($c) => !is_array($c) || ($c['id'] ?? null) !== $id));
-} else {
-    respondJson(404, ['ok' => false, 'error' => 'Unknown action']);
+
+    $doc['revision']++;
+    return $doc;
+}, true);
+
+if ($updatedDoc === null) {
+    respondJson(500, ['ok' => false, 'error' => 'Could not update cue file']);
 }
 
-$doc['revision']++;
-if (!writeJsonLocked($file, $doc, true)) {
-    respondJson(500, ['ok' => false, 'error' => 'Could not write cue file']);
-}
-
-updateRevisionSignal($signalFile, $stateDir, $script, $dept, $doc['revision']);
-respondJson(200, ['ok' => true, 'revision' => $doc['revision'], 'cues' => $doc['cues']]);
+updateRevisionSignal($signalFile, $stateDir, $script, $dept, $updatedDoc['revision']);
+respondJson(200, ['ok' => true, 'revision' => $updatedDoc['revision'], 'cues' => $updatedDoc['cues']]);

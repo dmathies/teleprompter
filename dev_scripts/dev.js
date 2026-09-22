@@ -3,9 +3,9 @@ import process from 'node:process';
 
 const WORKERS = process.env.PHP_CLI_SERVER_WORKERS || '10';
 
-console.log(`[dev] Spawning PHP server via scripts/start-php.js (PHP_CLI_SERVER_WORKERS=${WORKERS})...`);
+console.log(`[dev] Spawning PHP server via dev_scripts/start-php.js (PHP_CLI_SERVER_WORKERS=${WORKERS})...`);
 
-const phpProcess = spawn(process.execPath, ['scripts/start-php.js'], {
+const phpProcess = spawn(process.execPath, ['dev_scripts/start-php.js'], {
   stdio: 'inherit',
   env: process.env,
   shell: false,

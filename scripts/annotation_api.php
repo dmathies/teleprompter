@@ -176,44 +176,48 @@ if (!isValidId($script) || !isset($catalog[$script])) {
 }
 
 $file = annotationFile($annotationDir, $script, $dept);
-$rawDoc = readJsonLocked($file);
-$doc = normalizeDoc($rawDoc, $script, $dept);
 
-if ($action === 'save') {
-    $ann = validateAnnotation(isset($data['annotation']) && is_array($data['annotation']) ? $data['annotation'] : []);
-    if ($ann['id'] === '') $ann['id'] = strtolower($dept) . '-ann-' . bin2hex(random_bytes(8));
+$updatedDoc = mutateJsonLocked($file, function($rawDoc) use ($action, $data, $script, $dept) {
+    $doc = normalizeDoc($rawDoc, $script, $dept);
 
-    $found = false;
-    foreach ($doc['annotations'] as $i => $existing) {
-        if (is_array($existing) && ($existing['id'] ?? null) === $ann['id']) {
-            $doc['annotations'][$i] = $ann;
-            $found = true;
-            break;
+    if ($action === 'save') {
+        $ann = validateAnnotation(isset($data['annotation']) && is_array($data['annotation']) ? $data['annotation'] : []);
+        if ($ann['id'] === '') $ann['id'] = strtolower($dept) . '-ann-' . bin2hex(random_bytes(8));
+
+        $found = false;
+        foreach ($doc['annotations'] as $i => $existing) {
+            if (is_array($existing) && ($existing['id'] ?? null) === $ann['id']) {
+                $doc['annotations'][$i] = $ann;
+                $found = true;
+                break;
+            }
         }
+        if (!$found) $doc['annotations'][] = $ann;
+    } elseif ($action === 'delete') {
+        $id = isset($data['id']) ? (string)$data['id'] : '';
+        if (!preg_match('/^[A-Za-z0-9_-]{1,100}$/', $id)) {
+            respondJson(400, ['ok' => false, 'error' => 'Invalid annotation id']);
+        }
+        $doc['annotations'] = array_values(array_filter(
+            $doc['annotations'],
+            fn($a) => !is_array($a) || ($a['id'] ?? null) !== $id
+        ));
+    } else {
+        respondJson(404, ['ok' => false, 'error' => 'Unknown action']);
     }
-    if (!$found) $doc['annotations'][] = $ann;
-} elseif ($action === 'delete') {
-    $id = isset($data['id']) ? (string)$data['id'] : '';
-    if (!preg_match('/^[A-Za-z0-9_-]{1,100}$/', $id)) {
-        respondJson(400, ['ok' => false, 'error' => 'Invalid annotation id']);
-    }
-    $doc['annotations'] = array_values(array_filter(
-        $doc['annotations'],
-        fn($a) => !is_array($a) || ($a['id'] ?? null) !== $id
-    ));
-} else {
-    respondJson(404, ['ok' => false, 'error' => 'Unknown action']);
+
+    $doc['revision']++;
+    return $doc;
+}, true);
+
+if ($updatedDoc === null) {
+    respondJson(500, ['ok' => false, 'error' => 'Could not update annotation file']);
 }
 
-$doc['revision']++;
-if (!writeJsonLocked($file, $doc, true)) {
-    respondJson(500, ['ok' => false, 'error' => 'Could not write annotation file']);
-}
-
-updateRevisionSignal($signalFile, $stateDir, $script, $dept, $doc['revision']);
+updateRevisionSignal($signalFile, $stateDir, $script, $dept, $updatedDoc['revision']);
 
 respondJson(200, [
     'ok' => true,
-    'revision' => $doc['revision'],
-    'annotations' => $doc['annotations'],
+    'revision' => $updatedDoc['revision'],
+    'annotations' => $updatedDoc['annotations'],
 ]);
