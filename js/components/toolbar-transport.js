@@ -1,5 +1,6 @@
-import { LitElement, html } from 'lit';
+import { html } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { BaseControllerElement } from './base-controller-element.js';
 import {
   IconPlay,
   IconPause,
@@ -10,8 +11,9 @@ import {
   IconAnglesDown,
 } from '../icons.js';
 
-export class ToolbarTransport extends LitElement {
+export class ToolbarTransport extends BaseControllerElement {
   static properties = {
+    ...BaseControllerElement.properties,
     playing: { type: Boolean },
     disabled: { type: Boolean },
   };
@@ -24,6 +26,13 @@ export class ToolbarTransport extends LitElement {
     super();
     this.playing = false;
     this.disabled = false;
+  }
+
+  onControllerUpdate(controller) {
+    if (!controller) return;
+    if (typeof controller.isPlaying === 'function') {
+      this.playing = controller.isPlaying();
+    }
   }
 
   _onPlayPause() {

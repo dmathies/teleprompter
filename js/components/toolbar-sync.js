@@ -1,5 +1,6 @@
-import { LitElement, html } from 'lit';
+import { html } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { BaseControllerElement } from './base-controller-element.js';
 import './toolbar-sync.scss';
 import {
   IconLock,
@@ -10,9 +11,11 @@ import {
   IconCircleDot,
   IconXmark,
 } from '../icons.js';
+import { formatHealthAge } from '../utils.js';
 
-export class ToolbarSync extends LitElement {
+export class ToolbarSync extends BaseControllerElement {
   static properties = {
+    ...BaseControllerElement.properties,
     activeDepartment: { type: String },
     syncMode: { type: String },
     isMaster: { type: Boolean },
@@ -26,6 +29,8 @@ export class ToolbarSync extends LitElement {
     healthText: { type: String },
     healthClass: { type: String },
     healthTitle: { type: String },
+    healthItems: { type: Array },
+    healthChecks: { type: Object },
   };
 
   createRenderRoot() {
@@ -45,6 +50,8 @@ export class ToolbarSync extends LitElement {
     this.syncStatusClass = '';
     this.healthText = '';
     this.healthClass = '';
+    this.healthItems = null;
+    this.healthChecks = null;
     this.healthTitle = 'Master/server heartbeat and time since ASM interaction';
   }
 
@@ -56,6 +63,22 @@ export class ToolbarSync extends LitElement {
   clearPassword() {
     const input = this.querySelector('#masterPassword');
     if (input) input.value = '';
+  }
+
+  setSyncStatus(message, cls = '') {
+    this.syncStatusText = message;
+    this.syncStatusClass = cls;
+  }
+
+  onControllerUpdate(controller) {
+    if (!controller) return;
+    if (typeof controller.getHealthChecks === 'function') {
+      this.healthChecks = controller.getHealthChecks();
+    }
+    if (typeof controller.getSyncMode === 'function') {
+      this.syncMode = controller.getSyncMode();
+      this.isMaster = this.syncMode === 'master';
+    }
   }
 
   getPasswordValue() {
@@ -248,9 +271,41 @@ export class ToolbarSync extends LitElement {
         class="${this.healthClass}"
         title="${this.healthTitle}"
       >
-        ${this.healthHtml ? unsafeHTML(this.healthHtml) : (this.healthText || '')}
+        ${this._renderHealthStatus()}
       </div>
     `;
+  }
+
+  _renderHealthStatus() {
+    if (this.healthChecks && typeof this.healthChecks === 'object') {
+      const { mode, server, master, net, input } = this.healthChecks;
+      if (mode === 'master') {
+        return html`
+          ${server ? html`<span class="${server.className || ''}">SERVER ● ${server.formattedAge || formatHealthAge(server.ageMs)}</span>` : ''}
+          ${server && input ? ' · ' : ''}
+          ${input ? html`<span class="${input.className || ''}">${input.label} ${input.formattedAge || formatHealthAge(input.ageMs)}</span>` : ''}
+        `;
+      } else if (mode === 'follower') {
+        return html`
+          ${master ? html`<span class="${master.className || ''}">MASTER ● ${master.formattedAge || formatHealthAge(master.ageMs)}</span>` : ''}
+          ${master && net ? ' · ' : ''}
+          ${net ? html`<span class="${net.className || ''}">NET ● ${net.formattedAge || formatHealthAge(net.ageMs)}</span>` : ''}
+          ${(master || net) && input ? ' · ' : ''}
+          ${input ? html`<span class="${input.className || ''}">${input.label} ${input.formattedAge || formatHealthAge(input.ageMs)}</span>` : ''}
+        `;
+      }
+    }
+
+    if (Array.isArray(this.healthItems)) {
+      return this.healthItems.map((item, index) => html`
+        ${index > 0 ? ' · ' : ''}
+        <span class="${item.className || ''}">
+          ${item.label}${item.dot ? ' ● ' : ' '}${item.value}
+        </span>
+      `);
+    }
+
+    return this.healthHtml ? unsafeHTML(this.healthHtml) : (this.healthText || '');
   }
 }
 

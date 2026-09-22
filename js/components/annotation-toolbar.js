@@ -1,5 +1,6 @@
-import { LitElement, html } from 'lit';
+import { html } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { BaseControllerElement } from './base-controller-element.js';
 import './annotation-toolbar.scss';
 import {
   IconPen,
@@ -11,13 +12,15 @@ import {
   IconCheck,
 } from '../icons.js';
 
-export class AnnotationToolbar extends LitElement {
+export class AnnotationToolbar extends BaseControllerElement {
   static properties = {
+    ...BaseControllerElement.properties,
     open: { type: Boolean },
     tool: { type: String },
     color: { type: String },
     width: { type: Number },
     syncStatus: { type: String },
+    syncState: { type: Object },
   };
 
   createRenderRoot() {
@@ -32,6 +35,7 @@ export class AnnotationToolbar extends LitElement {
     this.color = '#ffd000';
     this.width = 3;
     this.syncStatus = '';
+    this.syncState = null;
   }
 
   _selectTool(tool) {
@@ -85,6 +89,29 @@ export class AnnotationToolbar extends LitElement {
       bubbles: true,
       composed: true,
     }));
+  }
+
+  onControllerUpdate(controller) {
+    if (!controller) return;
+    if (typeof controller.getSyncState === 'function') {
+      this.syncState = controller.getSyncState();
+    }
+  }
+
+  _renderSyncStatus() {
+    if (this.syncState) {
+      const { status, pendingCount = 0, online = true } = this.syncState;
+      if (status === 'syncing') return 'syncing…';
+      if (status === 'saving') return 'saving…';
+      if (status === 'pending') {
+        return online ? `${pendingCount} pending` : `offline · ${pendingCount}`;
+      }
+      if (status === 'saved') return online ? 'saved' : 'offline';
+      if (status === 'offline') return 'offline';
+      if (status === 'not-saved') return 'not saved';
+      if (status === 'offline-not-cached') return 'offline · not cached';
+    }
+    return this.syncStatus || '';
   }
 
   render() {
@@ -174,7 +201,7 @@ export class AnnotationToolbar extends LitElement {
           @input=${this._onWidthInput}
           @change=${this._onWidthChange}
         >
-        <span id="annotationSyncStatus">${this.syncStatus}</span>
+        <span id="annotationSyncStatus">${this._renderSyncStatus()}</span>
         <button
           type="button"
           id="annotationDoneBtn"

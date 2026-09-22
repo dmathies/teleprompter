@@ -20,6 +20,9 @@ import "./components/toolbar-display.js";
 import "./components/toolbar-navigation.js";
 import "./components/toolbar-sync.js";
 import "./components/toolbar-sliders.js";
+import '@fontsource-variable/work-sans';
+import "@fontsource-variable/jetbrains-mono";
+
 
 const dom = getTeleprompterDom();
 
@@ -267,6 +270,11 @@ const syncEngine = createSyncEngine({
     updateCueLockUi: () => cuesManager.updateCueLockUi()
 });
 
+if (toolbarTransport) toolbarTransport.controller = transport;
+if (toolbarSliders) toolbarSliders.controller = transport;
+if (toolbarSync) toolbarSync.controller = syncEngine;
+if (annotationToolbar) annotationToolbar.controller = annotationsController;
+
 const {openExportPanel, closeExportPanel, startPdfExport} = createPdfExporter({
     exportDialog,
     ALLOWED_DEPARTMENTS,
@@ -416,8 +424,10 @@ function applyFontSize(size) {
 }
 
 function updateStatus() {
-    const text = (transport.isPlaying() ? "Playing" : "Paused") + " | Speed: " + transport.getSpeed().toFixed(1);
-    if (toolbarSliders) toolbarSliders.statusText = text;
+    if (toolbarSliders) {
+        toolbarSliders.isPlaying = transport.isPlaying();
+        toolbarSliders.speed = transport.getSpeed();
+    }
 }
 
 async function attemptUnlock(key) {

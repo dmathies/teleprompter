@@ -243,6 +243,7 @@ export function createTeleprompterTransport({
                 if (toolbarDisplay) toolbarDisplay.wakeLockActive = false;
             });
         } catch (err) {
+            console.error("Failed to acquire wake lock", err);
             wakeLock = null;
             if (toolbarDisplay) toolbarDisplay.wakeLockActive = false;
         }

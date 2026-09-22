@@ -1,3 +1,5 @@
+import { AnnotationEraser } from "./annotation-eraser.js";
+
 export function createAnnotationsController({
     content,
     viewport,
@@ -30,30 +32,42 @@ export function createAnnotationsController({
     let penAnnotationPointerId = null;
     let penEraseActive = false;
     let penPaletteAutoVisible = false;
-    let eraserTrailCanvas = null;
-    let eraserTrailCtx = null;
-    let eraserLastPoint = null;
-    let eraserDeletedIds = new Set();
-    const ANNOTATION_ERASER_WIDTH_PX = 10;
 
     function annotationCacheKey(script = getCurrentScriptId(), dept = getActiveDepartment()) {
         return annotationStore.key(script, dept);
     }
 
+    let currentSyncState = null;
+
     async function updateAnnotationSyncLabel() {
         const activeDepartment = getActiveDepartment();
         const currentScriptId = getCurrentScriptId();
         if (!activeDepartment || !currentScriptId) {
-            if (annotationToolbar) annotationToolbar.syncStatus = '';
+            currentSyncState = null;
+            if (annotationToolbar) {
+                annotationToolbar.syncState = null;
+                annotationToolbar.syncStatus = '';
+            }
             return;
         }
         const pending = await annotationStore.opsFor(annotationCacheKey());
-        let label = '';
-        if (annotationFlushRunning) label = 'syncing…';
-        else if (annotationSyncDebounceTimer !== null) label = 'saving…';
-        else if (pending.length) label = navigator.onLine ? (pending.length + ' pending') : ('offline · ' + pending.length);
-        else label = navigator.onLine ? 'saved' : 'offline';
-        if (annotationToolbar) annotationToolbar.syncStatus = label;
+        const online = !!navigator.onLine;
+        let stateObj = null;
+
+        if (annotationFlushRunning) {
+            stateObj = { status: 'syncing' };
+        } else if (annotationSyncDebounceTimer !== null) {
+            stateObj = { status: 'saving' };
+        } else if (pending.length) {
+            stateObj = { status: 'pending', pendingCount: pending.length, online };
+        } else {
+            stateObj = { status: 'saved', online };
+        }
+
+        currentSyncState = stateObj;
+        if (annotationToolbar) {
+            annotationToolbar.syncState = stateObj;
+        }
     }
 
     function renderAnnotations() {
@@ -221,109 +235,25 @@ export function createAnnotationsController({
         document.body.classList.remove('annotation-erase');
     }
 
-    function ensureEraserTrailCanvas() {
-        if (eraserTrailCanvas) return eraserTrailCanvas;
-        const canvas = document.createElement('canvas');
-        canvas.setAttribute('aria-hidden', 'true');
-        Object.assign(canvas.style, {
-            position: 'fixed', inset: '0', width: '100%', height: '100%',
-            pointerEvents: 'none', zIndex: '1900'
-        });
-        document.body.appendChild(canvas);
-        eraserTrailCanvas = canvas;
-        eraserTrailCtx = canvas.getContext('2d');
-        return canvas;
-    }
-
-    function resizeEraserTrailCanvas() {
-        const canvas = ensureEraserTrailCanvas();
-        const dpr = Math.max(1, window.devicePixelRatio || 1);
-        const w = Math.max(1, window.innerWidth);
-        const h = Math.max(1, window.innerHeight);
-        if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
-            canvas.width = Math.round(w * dpr);
-            canvas.height = Math.round(h * dpr);
-        }
-        eraserTrailCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        eraserTrailCtx.lineCap = 'round';
-        eraserTrailCtx.lineJoin = 'round';
-    }
-
-    function clearEraserTrail() {
-        if (!eraserTrailCanvas || !eraserTrailCtx) return;
-        eraserTrailCtx.setTransform(1, 0, 0, 1, 0, 0);
-        eraserTrailCtx.clearRect(0, 0, eraserTrailCanvas.width, eraserTrailCanvas.height);
-        eraserLastPoint = null;
-    }
-
-    function annotationIdsNearPoint(clientX, clientY, radius = ANNOTATION_ERASER_WIDTH_PX / 2) {
-        const ids = new Set();
-        const step = Math.max(3, radius * .7);
-        const offsets = [
-            [0, 0], [radius, 0], [-radius, 0], [0, radius], [0, -radius],
-            [step, step], [step, -step], [-step, step], [-step, -step]
-        ];
-        document.body.classList.add('annotation-erase');
-        for (const [dx, dy] of offsets) {
-            for (const el of document.elementsFromPoint(clientX + dx, clientY + dy)) {
-                const shape = el && el.closest ? el.closest('[data-annotation-id]') : null;
-                const id = shape && shape.dataset ? shape.dataset.annotationId : '';
-                if (id) ids.add(id);
-            }
-        }
-        if (!annotationMode && !penEraseActive && annotationTool !== 'erase') {
-            document.body.classList.remove('annotation-erase');
-        }
-        return ids;
-    }
-
-    function eraseAnnotationsAlongSegment(x1, y1, x2, y2) {
-        const dist = Math.hypot(x2 - x1, y2 - y1);
-        const spacing = Math.max(2, ANNOTATION_ERASER_WIDTH_PX * .35);
-        const steps = Math.max(1, Math.ceil(dist / spacing));
-        for (let i = 0; i <= steps; i++) {
-            const t = steps ? i / steps : 0;
-            const x = x1 + (x2 - x1) * t;
-            const y = y1 + (y2 - y1) * t;
-            for (const id of annotationIdsNearPoint(x, y, ANNOTATION_ERASER_WIDTH_PX / 2)) {
-                if (eraserDeletedIds.has(id)) continue;
-                eraserDeletedIds.add(id);
-                applyAnnotationLocal('delete', {id});
-            }
-        }
-    }
+    const annotationEraser = new AnnotationEraser({
+        onEraseAnnotation: (id) => applyAnnotationLocal('delete', {id}),
+        isAnnotationMode: () => annotationMode,
+        getAnnotationTool: () => annotationTool
+    });
 
     function startEraserStroke(e) {
-        resizeEraserTrailCanvas();
-        clearEraserTrail();
-        eraserDeletedIds = new Set();
-        eraserLastPoint = {x: e.clientX, y: e.clientY};
         penEraseActive = true;
-        document.body.classList.add('annotation-erase');
-        eraseAnnotationsAlongSegment(e.clientX, e.clientY, e.clientX, e.clientY);
+        annotationEraser.startStroke(e.clientX, e.clientY);
     }
 
     function moveEraserStroke(e) {
-        if (!eraserLastPoint) return;
-        const from = eraserLastPoint;
-        const to = {x: e.clientX, y: e.clientY};
-        eraserTrailCtx.beginPath();
-        eraserTrailCtx.moveTo(from.x, from.y);
-        eraserTrailCtx.lineTo(to.x, to.y);
-        eraserTrailCtx.strokeStyle = 'rgba(255,255,255,.32)';
-        eraserTrailCtx.lineWidth = ANNOTATION_ERASER_WIDTH_PX;
-        eraserTrailCtx.stroke();
-        eraseAnnotationsAlongSegment(from.x, from.y, to.x, to.y);
-        eraserLastPoint = to;
+        annotationEraser.moveStroke(e.clientX, e.clientY);
     }
 
     function endEraserStroke() {
-        const removedAny = eraserDeletedIds.size > 0;
+        const removedCount = annotationEraser.endStroke();
         penEraseActive = false;
-        eraserDeletedIds = new Set();
-        setTimeout(clearEraserTrail, 120);
-        if (!annotationMode && annotationTool !== 'erase') document.body.classList.remove('annotation-erase');
-        if (removedAny) scheduleAnnotationSync(500);
+        if (removedCount > 0) scheduleAnnotationSync(500);
     }
 
     async function annotationServerMutation(action, payload) {
@@ -368,12 +298,15 @@ export function createAnnotationsController({
                 try {
                     const body = await annotationServerMutation(action, payload);
                     annotationRevision = Math.max(annotationRevision, Number(body.revision) || 0);
-                    if (annotationToolbar) annotationToolbar.syncStatus = 'saved';
+                    currentSyncState = { status: 'saved', online: true };
+                    if (annotationToolbar) annotationToolbar.syncState = currentSyncState;
                 } catch (_) {
-                    if (annotationToolbar) annotationToolbar.syncStatus = 'not saved';
+                    currentSyncState = { status: 'not-saved' };
+                    if (annotationToolbar) annotationToolbar.syncState = currentSyncState;
                 }
             } else {
-                if (annotationToolbar) annotationToolbar.syncStatus = 'offline · not cached';
+                currentSyncState = { status: 'offline-not-cached' };
+                if (annotationToolbar) annotationToolbar.syncState = currentSyncState;
             }
             return;
         }
@@ -793,6 +726,7 @@ export function createAnnotationsController({
         clearAnnotationSyncDebounce,
         isAnnotationMode: () => annotationMode,
         getLoadedAnnotations: () => loadedAnnotations,
-        getAnnotationRevision: () => annotationRevision
+        getAnnotationRevision: () => annotationRevision,
+        getSyncState: () => currentSyncState
     };
 }

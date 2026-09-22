@@ -44,9 +44,9 @@ export function createContextHeader({
     function updateContextHeader() {
         const current = referenceBlock();
         if (!current) {
-            if (headerAct) headerAct.textContent = "Act &emdash;";
-            if (headerScene) headerScene.textContent = "Scene &emdash;";
-            if (headerPage) headerPage.textContent = "Page &emdash;";
+            if (headerAct) headerAct.textContent = "Act —";
+            if (headerScene) headerScene.textContent = "Scene —";
+            if (headerPage) headerPage.textContent = "Page —";
             if (onUpdate) onUpdate();
             return;
         }
@@ -56,7 +56,7 @@ export function createContextHeader({
             b => b.classList.contains("scene-heading")
         );
 
-        let sceneText = scene ? scene.textContent.trim() : "&emdash;";
+        let sceneText = scene ? scene.textContent.trim() : "—";
         if (headerScene) {
             headerScene.textContent =
                 /^scene\b/i.test(sceneText) || /^prologue\b/i.test(sceneText)
@@ -93,8 +93,8 @@ export function createContextHeader({
             if (pageBlock) page = pageBlock.dataset.page;
         }
 
-        if (headerAct) headerAct.textContent = act ? String(act) : "Act &emdash;";
-        if (headerPage) headerPage.textContent = page ? ("Page " + page) : "Page &emdash;";
+        if (headerAct) headerAct.textContent = act ? String(act) : "Act —";
+        if (headerPage) headerPage.textContent = page ? ("Page " + page) : "Page —";
         if (onUpdate) onUpdate();
     }
 

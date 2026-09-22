@@ -1,5 +1,6 @@
 import {motionSignature as syncMotionSignature, stateAgeAtDeliveryMs} from "./sync-protocol.js";
-import {formatHealthAge, healthClass, hslToRgb} from "./utils.js";
+import {createSyncHealthMonitor} from "./sync-health.js";
+import {FollowerInterpolator} from "./sync-follower-interpolator.js";
 
 export function createSyncEngine({
     viewport,
@@ -79,6 +80,9 @@ export function createSyncEngine({
     let lastMasterInteractionSamplePerf = null;
     let lastServerHeartbeatPerf = null;
 
+    let masterLastSpeed = null;
+    let masterLastSpeedTime = null;
+
     let followTimer = null;
     let followEventSource = null;
     let followTransport = "none";
@@ -92,13 +96,13 @@ export function createSyncEngine({
     let lastRemoteMotionAt = performance.now();
     let followingLive = true;
     let followTargetScrollTop = null;
-    let followSamples = [];
-    let followClockServerMs = null;
-    let followClockPerfMs = null;
+    const interpolator = new FollowerInterpolator({
+        followBufferMs,
+        followAverageWindowMs,
+        followMaxWaitMs,
+        followWaitEpsilonPx
+    });
     let lastRemotePlaying = null;
-    let lastRenderedFollowPosition = null;
-    let followWaitingSince = null;
-    let followDirection = 0; // +1 forward, -1 reverse, 0 unknown/stationary
     let syncAnimationRunning = false;
     let pendingTopJump = null;
     const FOLLOW_TOP_GUARD_FRACTION = 0.025;
@@ -113,6 +117,34 @@ export function createSyncEngine({
         return sseEndpoint + "?room=" + encodeURIComponent(syncRoom);
     }
 
+    const healthMonitor = createSyncHealthMonitor({
+        masterIdleBorder,
+        masterIdleBorderEnabled,
+        masterBorderStartMs,
+        masterBorderRedMs,
+        masterHeartbeatOkMs,
+        masterHeartbeatWarnMs,
+        serverHeartbeatOkMs,
+        serverHeartbeatWarnMs,
+        masterAutoWarnMs,
+        masterAutoErrorMs,
+        getSyncMode: () => syncMode,
+        isPlaying,
+        getHeartbeatTimestamps: () => ({
+            lastMasterServerAckPerf,
+            lastMasterInteractionPerf,
+            lastMasterHeartbeatBaseMs,
+            lastMasterHeartbeatSamplePerf,
+            lastMasterInteractionBaseMs,
+            lastMasterInteractionSamplePerf,
+            lastServerHeartbeatPerf,
+            latestRemoteState
+        }),
+        onHealthChecksUpdate: (checks) => {
+            if (toolbarSync) toolbarSync.healthChecks = checks;
+        }
+    });
+
     function recordMasterInteraction() {
         if (syncMode !== "master") return;
         lastMasterInteractionPerf = performance.now();
@@ -121,91 +153,28 @@ export function createSyncEngine({
     }
 
     function updateMasterIdleBorder() {
-        if (!masterIdleBorder) return;
+        healthMonitor.updateIdleBorder(lastMasterInteractionPerf);
+    }
 
-        if (!masterIdleBorderEnabled) {
-            masterIdleBorder.style.opacity = "0";
-            return;
-        }
-
-        if (syncMode !== "master" || !isPlaying()) {
-            masterIdleBorder.style.opacity = "0";
-            return;
-        }
-
-        const age = Math.max(0, performance.now() - lastMasterInteractionPerf);
-        if (age <= masterBorderStartMs) {
-            masterIdleBorder.style.opacity = "0";
-            return;
-        }
-
-        const t = Math.max(0, Math.min(1,
-            (age - masterBorderStartMs) /
-            (masterBorderRedMs - masterBorderStartMs)
-        ));
-
-        const hue = 55 * (1 - t);
-        const [r, g, b] = hslToRgb(hue, 1, .50);
-
-        const alpha = 0.12 + 0.50 * t;
-        masterIdleBorder.style.setProperty("--idle-border-rgb", `${r}, ${g}, ${b}`);
-        masterIdleBorder.style.setProperty("--idle-border-alpha", alpha.toFixed(3));
-        masterIdleBorder.style.opacity = "1";
+    function getHealthChecks() {
+        return healthMonitor.computeHealthChecks();
     }
 
     function updateMasterHealthStatus() {
         if (!toolbarSync) return;
-        const now = performance.now();
-
-        if (syncMode === "master") {
-            const ackAge = lastMasterServerAckPerf === null ? Infinity : now - lastMasterServerAckPerf;
-            const inputAge = Math.max(0, now - lastMasterInteractionPerf);
-            const ackCls = healthClass(ackAge, masterHeartbeatOkMs, masterHeartbeatWarnMs);
-            const autoCls = isPlaying()
-                ? (inputAge > masterAutoErrorMs ? "health-error" :
-                    inputAge > masterAutoWarnMs ? "health-warn" : "health-ok")
-                : "health-idle";
-            const inputLabel = isPlaying() ? "AUTO" : "INPUT";
-            toolbarSync.healthHtml =
-                '<span class="' + ackCls + '">SERVER ● ' + formatHealthAge(ackAge) + '</span>' +
-                ' · <span class="' + autoCls + '">' + inputLabel + ' ' + formatHealthAge(inputAge) + '</span>';
-            return;
-        }
-
-        let masterAge = Infinity;
-        if (Number.isFinite(lastMasterHeartbeatBaseMs) && lastMasterHeartbeatSamplePerf !== null) {
-            masterAge = lastMasterHeartbeatBaseMs + (now - lastMasterHeartbeatSamplePerf);
-        }
-
-        const serverAge = lastServerHeartbeatPerf === null ? Infinity : now - lastServerHeartbeatPerf;
-
-        let interactionAge = Infinity;
-        if (Number.isFinite(lastMasterInteractionBaseMs) && lastMasterInteractionSamplePerf !== null) {
-            interactionAge = lastMasterInteractionBaseMs + (now - lastMasterInteractionSamplePerf);
-        }
-
-        const masterCls = healthClass(masterAge, masterHeartbeatOkMs, masterHeartbeatWarnMs);
-        const netCls = healthClass(serverAge, serverHeartbeatOkMs, serverHeartbeatWarnMs);
-        const remotePlaying = !!(latestRemoteState && latestRemoteState.playing !== false);
-        const autoCls = remotePlaying
-            ? (interactionAge > masterAutoErrorMs ? "health-error" :
-                interactionAge > masterAutoWarnMs ? "health-warn" : "health-ok")
-            : "health-idle";
-        const inputLabel = remotePlaying ? "AUTO" : "INPUT";
-
-        toolbarSync.healthHtml =
-            '<span class="' + masterCls + '">MASTER ● ' + formatHealthAge(masterAge) + '</span>' +
-            ' · <span class="' + netCls + '">NET ● ' + formatHealthAge(serverAge) + '</span>' +
-            ' · <span class="' + autoCls + '">' + inputLabel + ' ' + formatHealthAge(interactionAge) + '</span>';
+        toolbarSync.healthChecks = healthMonitor.updateHealth();
     }
 
-    const healthInterval = setInterval(updateMasterHealthStatus, 500);
     const borderInterval = setInterval(updateMasterIdleBorder, 200);
 
     function setSyncStatus(message, cls = "") {
         if (toolbarSync) {
-            toolbarSync.syncStatusText = message;
-            toolbarSync.syncStatusClass = cls;
+            if (typeof toolbarSync.setSyncStatus === "function") {
+                toolbarSync.setSyncStatus(message, cls);
+            } else {
+                toolbarSync.syncStatusText = message;
+                toolbarSync.syncStatusClass = cls;
+            }
         }
     }
 
@@ -230,9 +199,7 @@ export function createSyncEngine({
             remoteStateExpiryTimer = null;
             if (syncMode !== "follow" || latestRemoteState !== state) return;
             followTargetScrollTop = null;
-            followSamples = [];
-            followClockServerMs = null;
-            followClockPerfMs = null;
+            interpolator.reset();
             forgetRemoteState();
             if (followingLive) {
                 setSyncStatus("FOLLOW: waiting for fresh master state", "warn");
@@ -290,19 +257,38 @@ export function createSyncEngine({
             return;
         }
 
+        const now = Date.now();
+        const playing = isPlaying();
+        const speedMultiplier = getSpeed();
+        // Speed in px/s (where 1.0 multiplier is 20 px/s in teleprompter-transport)
+        const currentSpeedPxPerSec = playing ? speedMultiplier * 20 : 0;
+        let accelerationPxPerSec2 = 0;
+
+        if (masterLastSpeed !== null && masterLastSpeedTime !== null) {
+            const dtSec = Math.max(0.05, (now - masterLastSpeedTime) / 1000);
+            accelerationPxPerSec2 = (currentSpeedPxPerSec - masterLastSpeed) / dtSec;
+            // Clamp wild acceleration spikes
+            accelerationPxPerSec2 = Math.max(-500, Math.min(500, accelerationPxPerSec2));
+            if (Math.abs(accelerationPxPerSec2) < 0.2) {
+                accelerationPxPerSec2 = 0;
+            }
+        }
+        masterLastSpeed = currentSpeedPxPerSec;
+        masterLastSpeedTime = now;
+
         const state = {
             sequence: ++syncSequence,
             script: getCurrentScriptId(),
             prompt: pos.prompt,
             fraction: pos.fraction,
-            playing: isPlaying(),
-            speed: getSpeed(),
+            playing,
+            speed: speedMultiplier,
+            acceleration: Number(accelerationPxPerSec2.toFixed(2)),
             interactionAgeMs: Math.max(0, performance.now() - lastMasterInteractionPerf),
-            updatedByClient: Date.now()
+            updatedByClient: now
         };
 
         const signature = syncMotionSignature(state);
-        const now = Date.now();
 
         if (signature === lastMasterStateSignature &&
             now - lastMasterSendAt < masterIdleHeartbeatMs) {
@@ -412,9 +398,7 @@ export function createSyncEngine({
             if (acceptedAge === null || acceptedAge >= followStateStaleMs) {
                 forgetRemoteState();
                 followTargetScrollTop = null;
-                followSamples = [];
-                followClockServerMs = null;
-                followClockPerfMs = null;
+                interpolator.reset();
             }
             if (followingLive) {
                 setSyncStatus("FOLLOW: stale master state ignored · " + transport, "warn");
@@ -442,8 +426,10 @@ export function createSyncEngine({
             const maxScroll = Math.max(1, maxScrollTop());
             const previousAccepted = followTargetScrollTop;
             const nearTop = clampedTarget <= Math.max(40, maxScroll * FOLLOW_TOP_GUARD_FRACTION);
-            const wasWellInside = previousAccepted !== null &&
-                previousAccepted >= Math.max(300, maxScroll * FOLLOW_TOP_GUARD_FROM_FRACTION);
+            const wasWellInside = (previousAccepted !== null &&
+                previousAccepted >= Math.max(300, maxScroll * FOLLOW_TOP_GUARD_FROM_FRACTION)) ||
+                (viewport.scrollTop >= Math.max(300, maxScroll * FOLLOW_TOP_GUARD_FROM_FRACTION));
+
             if (nearTop && wasWellInside && incomingState.script === getCurrentScriptId()) {
                 const nowPerf = performance.now();
                 const seq = Number(incomingState.sequence) || 0;
@@ -452,7 +438,7 @@ export function createSyncEngine({
                     seq !== pendingTopJump.sequence;
                 if (!confirmed) {
                     pendingTopJump = {at: nowPerf, sequence: seq, prompt: incomingState.prompt};
-                    console.warn("Held suspicious single master jump to top", incomingState);
+                    console.warn("Held suspicious master jump to top", incomingState);
                     setSyncStatus("FOLLOW: ignored suspect top jump · " + transport, "warn");
                     return;
                 }
@@ -470,9 +456,7 @@ export function createSyncEngine({
             const remotePlaying = latestRemoteState.playing !== false;
 
             if (lastRemotePlaying !== null && remotePlaying !== lastRemotePlaying) {
-                followSamples = [];
-                lastRenderedFollowPosition = null;
-                followDirection = 0;
+                interpolator.reset();
             }
 
             lastRemotePlaying = remotePlaying;
@@ -483,38 +467,32 @@ export function createSyncEngine({
             }
 
             const sequence = Number(latestRemoteState.sequence) || 0;
-            let previousSample = followSamples.length ? followSamples[followSamples.length - 1] : null;
+            const acceleration = Number(latestRemoteState.acceleration) || 0;
 
+            const previousSample = interpolator.getLastSample();
             if (previousSample) {
                 const delta = clampedTarget - previousSample.target;
                 if (Math.abs(delta) >= 2) {
                     const newDirection = delta > 0 ? 1 : -1;
-                    if (followDirection !== 0 && newDirection !== followDirection) {
-                        followSamples = [previousSample];
-                        lastRenderedFollowPosition = viewport.scrollTop;
-                        followWaitingSince = null;
-                        followClockServerMs = previousSample.serverMs;
-                        followClockPerfMs = receivePerf;
-                        previousSample = followSamples[0];
+                    const curDir = interpolator.getDirection();
+                    if (curDir !== 0 && newDirection !== curDir) {
+                        interpolator.reset();
+                        interpolator.addSample(previousSample, previousSample.serverMs, receivePerf);
                     }
-                    followDirection = newDirection;
+                    interpolator.setDirection(newDirection);
                 }
             }
 
             if (!previousSample || previousSample.sequence !== sequence || previousSample.serverMs !== sampleServerMs) {
-                followSamples.push({
+                interpolator.addSample({
                     serverMs: sampleServerMs,
                     target: clampedTarget,
                     playing: remotePlaying,
+                    acceleration,
                     sequence
-                });
-
-                const cutoff = sampleServerMs - 7000;
-                followSamples = followSamples.filter(sample => sample.serverMs >= cutoff);
+                }, sampleServerMs, receivePerf);
             }
 
-            followClockServerMs = sampleServerMs;
-            followClockPerfMs = receivePerf;
             followTargetScrollTop = clampedTarget;
             startFollowAnimation();
             setSyncStatus("FOLLOW: live · " + transport, "ok");
@@ -523,6 +501,11 @@ export function createSyncEngine({
             pendingTopJump = null;
             updateMasterPositionMarker();
             setSyncStatus("FOLLOW: PAUSED — tap ◎ to rejoin", "warn");
+        } else if (target === null) {
+            // Script is matching but prompt block temporarily not found or still rendering.
+            // Do NOT jump to top or flag script mismatch; retain current position and log warning.
+            console.warn("Follower received prompt not yet present in DOM", incomingState.prompt);
+            rememberFreshRemoteState(incomingState, stateAgeAtReceive, receivedAt);
         } else {
             setSyncStatus("FOLLOW: script mismatch", "error");
         }
@@ -697,9 +680,7 @@ export function createSyncEngine({
         if (
             syncMode !== "follow" ||
             !followingLive ||
-            !followSamples.length ||
-            followClockServerMs === null ||
-            followClockPerfMs === null
+            !interpolator.hasSamples()
         ) {
             syncAnimationRunning = false;
             return;
@@ -708,121 +689,21 @@ export function createSyncEngine({
         const currentStateAge = latestRemoteStateAgeMs();
         if (currentStateAge === null || currentStateAge >= followStateStaleMs) {
             followTargetScrollTop = null;
-            followSamples = [];
-            followClockServerMs = null;
-            followClockPerfMs = null;
+            interpolator.reset();
             forgetRemoteState();
             setSyncStatus("FOLLOW: waiting for fresh master state", "warn");
             syncAnimationRunning = false;
             return;
         }
 
-        const estimatedServerNow = followClockServerMs + (performance.now() - followClockPerfMs);
-        const renderServerMs = estimatedServerNow - followBufferMs;
-
-        let desired = followSamples[0].target;
-        const latestSample = followSamples[followSamples.length - 1];
-
-        if (latestSample.playing && followSamples.length >= 3) {
-            const windowStart = renderServerMs - followAverageWindowMs / 2;
-            const windowEnd = renderServerMs + followAverageWindowMs / 2;
-
-            let samples = followSamples.filter(
-                s => s.serverMs >= windowStart && s.serverMs <= windowEnd
-            );
-
-            if (samples.length < 3) {
-                const newest = followSamples[followSamples.length - 1].serverMs;
-                samples = followSamples.filter(
-                    s => s.serverMs >= newest - followAverageWindowMs
-                );
-            }
-
-            if (samples.length >= 2) {
-                let meanT = 0;
-                let meanY = 0;
-
-                for (const s of samples) {
-                    meanT += s.serverMs;
-                    meanY += s.target;
-                }
-
-                meanT /= samples.length;
-                meanY /= samples.length;
-
-                let covariance = 0;
-                let variance = 0;
-
-                for (const s of samples) {
-                    const dt = (s.serverMs - meanT) / 1000;
-                    const dy = s.target - meanY;
-                    covariance += dt * dy;
-                    variance += dt * dt;
-                }
-
-                let velocity = variance > 0.000001 ? covariance / variance : 0;
-                if (Math.abs(velocity) < 0.15) velocity = 0;
-
-                const renderDt = (renderServerMs - meanT) / 1000;
-                desired = meanY + velocity * renderDt;
-            }
-        } else {
-            if (renderServerMs <= followSamples[0].serverMs) {
-                desired = followSamples[0].target;
-            } else {
-                let foundPair = false;
-                for (let i = 1; i < followSamples.length; i++) {
-                    const a = followSamples[i - 1];
-                    const b = followSamples[i];
-                    if (renderServerMs <= b.serverMs) {
-                        const span = Math.max(1, b.serverMs - a.serverMs);
-                        const f = Math.max(0, Math.min(1, (renderServerMs - a.serverMs) / span));
-                        desired = a.target + (b.target - a.target) * f;
-                        foundPair = true;
-                        break;
-                    }
-                }
-                if (!foundPair) {
-                    desired = followSamples[followSamples.length - 1].target;
-                }
-            }
-        }
-
-        desired = Math.max(0, Math.min(maxScrollTop(), desired));
-
-        if (latestSample.playing && lastRenderedFollowPosition !== null && followDirection !== 0) {
-            const oppositeBy = followDirection > 0
-                ? lastRenderedFollowPosition - desired
-                : desired - lastRenderedFollowPosition;
-
-            if (oppositeBy > followWaitEpsilonPx) {
-                if (followWaitingSince === null) {
-                    followWaitingSince = performance.now();
-                }
-                const waited = performance.now() - followWaitingSince;
-                if (waited >= followMaxWaitMs) {
-                    desired = latestSample.target;
-                    followSamples = [latestSample];
-                    followClockServerMs = latestSample.serverMs;
-                    followClockPerfMs = performance.now();
-                    lastRenderedFollowPosition = desired;
-                    followWaitingSince = null;
-                } else {
-                    desired = lastRenderedFollowPosition;
-                }
-            } else {
-                followWaitingSince = null;
-                desired = followDirection > 0
-                    ? Math.max(lastRenderedFollowPosition, desired)
-                    : Math.min(lastRenderedFollowPosition, desired);
-            }
-        } else {
-            followWaitingSince = null;
+        const desired = interpolator.computeDesiredPosition(maxScrollTop(), performance.now());
+        if (desired === null) {
+            syncAnimationRunning = false;
+            return;
         }
 
         viewport.scrollTop = desired;
         setScrollPos(viewport.scrollTop);
-        lastRenderedFollowPosition = viewport.scrollTop;
         scheduleContextUpdate();
 
         requestAnimationFrame(followAnimationStep);
@@ -863,13 +744,8 @@ export function createSyncEngine({
         followingLive = true;
         document.body.classList.remove("follow-paused");
         followTargetScrollTop = null;
-        followSamples = [];
-        followClockServerMs = null;
-        followClockPerfMs = null;
+        interpolator.reset();
         lastRemotePlaying = null;
-        lastRenderedFollowPosition = null;
-        followWaitingSince = null;
-        followDirection = 0;
         if (remoteStateExpiryTimer !== null) {
             clearTimeout(remoteStateExpiryTimer);
             remoteStateExpiryTimer = null;
@@ -944,13 +820,8 @@ export function createSyncEngine({
         if (syncMode === "follow" && followingLive) {
             followingLive = false;
             followTargetScrollTop = null;
-            followSamples = [];
-            followClockServerMs = null;
-            followClockPerfMs = null;
+            interpolator.reset();
             lastRemotePlaying = null;
-            lastRenderedFollowPosition = null;
-            followWaitingSince = null;
-            followDirection = 0;
             document.body.classList.add("follow-paused");
             if (toolbarSync) toolbarSync.canRejoin = true;
             setSyncStatus("FOLLOW: PAUSED — tap ◎ to rejoin", "warn");
@@ -963,13 +834,8 @@ export function createSyncEngine({
         if (syncMode !== "follow") return;
         stopDragMomentum();
         followingLive = true;
-        followSamples = [];
-        followClockServerMs = null;
-        followClockPerfMs = null;
+        interpolator.reset();
         lastRemotePlaying = null;
-        lastRenderedFollowPosition = null;
-        followWaitingSince = null;
-        followDirection = 0;
         document.body.classList.remove("follow-paused");
         if (toolbarSync) toolbarSync.canRejoin = false;
         updateMasterPositionMarker();
@@ -982,7 +848,6 @@ export function createSyncEngine({
             if (target !== null) {
                 followTargetScrollTop = Math.max(0, Math.min(maxScrollTop(), target));
                 setScrollPos(followTargetScrollTop);
-                lastRenderedFollowPosition = viewport.scrollTop;
             }
             setSyncStatus("FOLLOW: live", "ok");
         } else {
@@ -1087,11 +952,7 @@ export function createSyncEngine({
                 setScrollPos(Math.max(0, Math.min(maxScrollTop(), target)));
 
                 if (syncMode === "follow") {
-                    followSamples = [];
-                    followClockServerMs = null;
-                    followClockPerfMs = null;
-                    lastRenderedFollowPosition = viewport.scrollTop;
-                    followWaitingSince = null;
+                    interpolator.reset();
                 }
 
                 if (syncMode === "master") {
@@ -1112,6 +973,7 @@ export function createSyncEngine({
         recordMasterInteraction,
         updateMasterIdleBorder,
         updateMasterHealthStatus,
+        getHealthChecks,
         setSyncStatus,
         publishMasterState,
         pauseFollowingForManualControl,
@@ -1127,7 +989,7 @@ export function createSyncEngine({
         setMasterKey: (val) => { masterKey = val || ""; },
         isMasterControlConflict: () => masterControlConflict,
         destroy: () => {
-            clearInterval(healthInterval);
+            healthMonitor.destroy();
             clearInterval(borderInterval);
             stopSyncTimers();
             stopFollowerTransport();

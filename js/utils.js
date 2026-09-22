@@ -1,7 +1,7 @@
 export function contrastingTextColor(hex) {
       const m = /^#([0-9a-f]{6})$/i.exec(hex || "");
       if (!m) return "#fff";
-      const n = parseInt(m[1], 16);
+      const n = Number.parseInt(m[1], 16);
       const r = (n >> 16) & 255;
       const g = (n >> 8) & 255;
       const b = n & 255;

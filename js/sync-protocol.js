@@ -10,8 +10,11 @@ export function motionSignature(state) {
   if (!state) return '';
   const fraction = Number(state.fraction);
   const stableFraction = Number.isFinite(fraction) ? Math.round(fraction * 10000) / 10000 : 0;
+  const acceleration = Number(state.acceleration);
+  const stableAcceleration = Number.isFinite(acceleration) ? Math.round(acceleration * 100) / 100 : 0;
   return JSON.stringify([
     state.script || '', state.prompt || '', stableFraction,
-    state.playing !== false, Number(state.speed) || 0
+    state.playing !== false, Number(state.speed) || 0,
+    stableAcceleration
   ]);
 }

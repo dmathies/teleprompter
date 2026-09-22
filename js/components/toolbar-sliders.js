@@ -1,11 +1,14 @@
-import { LitElement, html } from 'lit';
+import { html } from 'lit';
+import { BaseControllerElement } from './base-controller-element.js';
 import './toolbar-sliders.scss';
 
-export class ToolbarSliders extends LitElement {
+export class ToolbarSliders extends BaseControllerElement {
   static properties = {
+    ...BaseControllerElement.properties,
     speed: { type: Number },
     fontSize: { type: Number },
     statusText: { type: String },
+    isPlaying: { type: Boolean },
     disabled: { type: Boolean },
     hideStatus: { type: Boolean },
   };
@@ -18,7 +21,8 @@ export class ToolbarSliders extends LitElement {
     super();
     this.speed = 2.0;
     this.fontSize = 42;
-    this.statusText = 'Paused | Speed: 2.0';
+    this.statusText = '';
+    this.isPlaying = false;
     this.disabled = false;
     this.hideStatus = false;
   }
@@ -63,7 +67,19 @@ export class ToolbarSliders extends LitElement {
     }));
   }
 
+  onControllerUpdate(controller) {
+    if (!controller) return;
+    if (typeof controller.isPlaying === 'function') {
+      this.isPlaying = controller.isPlaying();
+    }
+    if (typeof controller.getSpeed === 'function') {
+      this.speed = controller.getSpeed();
+    }
+  }
+
   render() {
+    const displayStatus = this.statusText || `${this.isPlaying ? 'Playing' : 'Paused'} | Speed: ${Number(this.speed).toFixed(1)}`;
+
     return html`
       <span id="speedControl">
         <label for="speedInput">Speed</label>
@@ -92,7 +108,7 @@ export class ToolbarSliders extends LitElement {
         @change=${this._onFontSizeChange}
       >
 
-      <div id="status" ?hidden=${this.hideStatus}>${this.statusText}</div>
+      <div id="status" ?hidden=${this.hideStatus}>${displayStatus}</div>
     `;
   }
 }

@@ -36,6 +36,18 @@ export class PhpTestServer {
     this.baseUrl = `http://${this.host}:${this.port}`;
   }
 
+  static async isAvailable(bin = findPhpBinary()) {
+    return new Promise((resolve) => {
+      try {
+        const probe = spawn(bin, ['-v']);
+        probe.on('error', () => resolve(false));
+        probe.on('exit', (code) => resolve(code === 0));
+      } catch (_) {
+        resolve(false);
+      }
+    });
+  }
+
   async start() {
     const isWin = process.platform === 'win32';
     const baseWorkerPort = this.port + 10;
