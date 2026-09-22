@@ -49,14 +49,13 @@ const {
 content.innerHTML =
     "<div class='cue'><span class='dialog'>Loading script…</span></div>";
 
-const HOSTNAME = '';
-const SYNC_ENDPOINT = HOSTNAME + "/scripts/teleprompter_sync.php";
-const SSE_ENDPOINT = HOSTNAME + "/scripts/teleprompter_events.php";
-const SCRIPT_LIST_ENDPOINT = HOSTNAME + "/scripts/list_scripts.php";
-const SCRIPT_GET_ENDPOINT = HOSTNAME + "/scripts/get_script.php";
-const CUE_API_ENDPOINT = HOSTNAME + "/scripts/cue_api.php";
-const ANNOTATION_API_ENDPOINT = HOSTNAME + "/scripts/annotation_api.php";
-const SETTINGS_API_ENDPOINT = HOSTNAME + "/scripts/settings_api.php";
+const SYNC_ENDPOINT = "/scripts/teleprompter_sync.php";
+const SSE_ENDPOINT = "/scripts/teleprompter_events.php";
+const SCRIPT_LIST_ENDPOINT = "/scripts/list_scripts.php";
+const SCRIPT_GET_ENDPOINT = "/scripts/get_script.php";
+const CUE_API_ENDPOINT = "/scripts/cue_api.php";
+const ANNOTATION_API_ENDPOINT = "/scripts/annotation_api.php";
+const SETTINGS_API_ENDPOINT = "/scripts/settings_api.php";
 const RAIL_SIDE_STORAGE_KEY = "gaosTeleprompterRailSide";
 const ALLOWED_DEPARTMENTS = ["FS", "LX", "SND", "STG"];
 const DEPARTMENT_DEFAULT_COLORS = {
