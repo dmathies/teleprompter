@@ -16,6 +16,9 @@ if (!isValidId($room)) {
 $stateDir = __DIR__ . '/teleprompter_state';
 $file = $stateDir . '/' . $room . '.json';
 $controlFile = $stateDir . '/' . $room . '.master.json';
+$annotationSignalFile = $stateDir . '/annotation_revisions.json';
+$cueSignalFile = $stateDir . '/cue_revisions.json';
+$departmentSettingsFile = $stateDir . '/department_settings.json';
 $MASTER_LEASE_SECONDS = 10.0;
 
 function isValidSessionId($id): bool {
@@ -109,14 +112,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     }
 
     $state = readJsonLocked($file);
-    // Return the current server clock alongside the stored state. Followers
-    // use this to age serverTime/interactionAgeMs consistently after reloads.
+    $annotationRevisions = readJsonLocked($annotationSignalFile);
+    $cueRevisions = readJsonLocked($cueSignalFile);
+    $departmentSettings = readJsonLocked($departmentSettingsFile);
+
+    // Return the current server clock alongside the stored state and revision signals.
+    // Followers use this for 100% parity between polling and SSE transports.
     $clientSend = isset($_GET['t1']) && is_numeric($_GET['t1']) ? (float)$_GET['t1'] : null;
     respondJson(200, [
         'ok' => true,
         'state' => $state,
         'serverTime' => $now,
-        't1' => $clientSend
+        't1' => $clientSend,
+        'cueRevisions' => $cueRevisions,
+        'annotationRevisions' => $annotationRevisions,
+        'departmentSettings' => $departmentSettings
     ]);
 }
 

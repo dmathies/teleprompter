@@ -2,6 +2,7 @@ import {motionSignature as syncMotionSignature, stateAgeAtDeliveryMs} from "./sy
 import {createSyncHealthMonitor} from "./sync-health.js";
 import {FollowerInterpolator} from "./sync-follower-interpolator.js";
 import {PtpClock} from "./sync-ptp-clock.js";
+import {SyncTransportCoordinator} from "./sync-transport-coordinator.js";
 
 export function createSyncEngine({
     viewport,
@@ -81,14 +82,7 @@ export function createSyncEngine({
     let lastMasterInteractionSamplePerf = null;
     let lastServerHeartbeatPerf = null;
 
-    let masterLastSpeed = null;
-    let masterLastSpeedTime = null;
 
-    let followTimer = null;
-    let followEventSource = null;
-    let followTransport = "none";
-    let sseFallbackTimer = null;
-    let sseHasOpened = false;
     let latestRemoteState = null;
     let latestRemoteStateAgeAtReceiveMs = null;
     let latestRemoteStateReceivedPerf = null;
@@ -119,10 +113,14 @@ export function createSyncEngine({
     let lastRemotePlaying = null;
     let syncAnimationRunning = false;
     let pendingTopJump = null;
+    let pendingDiscrepantJump = null;
     let lastAcceptedSequence = null;
     const FOLLOW_TOP_GUARD_FRACTION = 0.025;
     const FOLLOW_TOP_GUARD_FROM_FRACTION = 0.15;
     const FOLLOW_TOP_GUARD_CONFIRM_MS = 1800;
+    const FOLLOW_DISCREPANCY_THRESHOLD_PX = 150;
+    const FOLLOW_DISCREPANCY_CONFIRM_COUNT = 2;
+    const FOLLOW_DISCREPANCY_WINDOW_MS = 800;
 
     const healthMonitor = createSyncHealthMonitor({
         masterIdleBorder,
@@ -191,6 +189,77 @@ export function createSyncEngine({
         }
     }
 
+    const transportCoordinator = new SyncTransportCoordinator({
+        syncUrl: () => syncUrl(),
+        sseUrl: () => sseUrl(),
+        ptpClock,
+        followPollIntervalMs,
+        followIdleAfterMs,
+        followIdlePollMs,
+        followSleepAfterMs,
+        followSleepPollMs
+    });
+
+    transportCoordinator.on("state", ({state, transport}) => {
+        handleRemoteState(state, transport).catch(e => {
+            if (followingLive) {
+                console.error("Error handling remote state:", e);
+                setSyncStatus(`FOLLOW: processing error · ${transport}`, "error");
+            }
+        });
+    });
+
+    transportCoordinator.on("cue-revision", (event) => {
+        lastServerHeartbeatPerf = performance.now();
+        handleCueRevisionEvent(event);
+    });
+
+    transportCoordinator.on("annotation-revision", (event) => {
+        lastServerHeartbeatPerf = performance.now();
+        handleAnnotationRevisionEvent(event);
+    });
+
+    transportCoordinator.on("department-settings", (event) => {
+        lastServerHeartbeatPerf = performance.now();
+        handleDepartmentSettingsEvent(event);
+    });
+
+    transportCoordinator.on("server-heartbeat", ({data, nowPerf}) => {
+        lastServerHeartbeatPerf = nowPerf;
+        if (data && Number.isFinite(Number(data.serverTime))) {
+            const localEpoch = (performance.timeOrigin ? performance.timeOrigin + nowPerf : Date.now());
+            const assumedRtt = ptpClock.synced ? Math.max(10, ptpClock.rttMs) : 50;
+            ptpClock.recordSample(localEpoch - assumedRtt, Number(data.serverTime), localEpoch);
+        }
+        updateMasterHealthStatus();
+    });
+
+    transportCoordinator.on("status", ({status, mode, transport, message}) => {
+        if (syncMode !== "follow") return;
+        if (!followingLive) return;
+
+        switch (status) {
+            case "connecting":
+                setSyncStatus(`FOLLOW: connecting · ${transport || "SSE"}`, "warn");
+                break;
+            case "connected":
+                setSyncStatus(`FOLLOW: connected · ${transport || "SSE"}`, "ok");
+                break;
+            case "fallback_poll":
+                setSyncStatus("FOLLOW: fallback · POLL", "warn");
+                break;
+            case "reconnecting":
+                setSyncStatus(`FOLLOW: reconnecting · ${transport || "SSE"}`, "warn");
+                break;
+            case "sleeping":
+                setSyncStatus("FOLLOW: sleeping · POLL", "warn");
+                break;
+            case "error":
+                setSyncStatus(message ? `FOLLOW: ${message}` : `FOLLOW: error · ${transport || "POLL"}`, "error");
+                break;
+        }
+    });
+
     function latestRemoteStateAgeMs() {
         if (!latestRemoteState ||
             !Number.isFinite(latestRemoteStateAgeAtReceiveMs) ||
@@ -236,32 +305,7 @@ export function createSyncEngine({
         updateMasterPositionMarker();
     }
 
-    function followerPollDelay() {
-        const idleFor = performance.now() - lastRemoteMotionAt;
-        if (idleFor >= followSleepAfterMs) return followSleepPollMs;
-        if (idleFor >= followIdleAfterMs) return followIdlePollMs;
-        return followPollIntervalMs;
-    }
 
-    function scheduleNextFollowerPoll(delay = null) {
-        if (followTimer !== null) {
-            clearTimeout(followTimer);
-            followTimer = null;
-        }
-
-        if (syncMode !== "follow" || followTransport !== "poll") return;
-        const nextDelay = delay === null ? followerPollDelay() : delay;
-
-        if (followingLive && performance.now() - lastRemoteMotionAt >= followSleepAfterMs) {
-            setSyncStatus("FOLLOW: sleeping · POLL", "warn");
-        }
-
-        followTimer = setTimeout(async () => {
-            followTimer = null;
-            await pollMasterState();
-            scheduleNextFollowerPoll();
-        }, nextDelay);
-    }
 
     async function publishMasterState() {
         if (syncMode !== "master") return;
@@ -277,21 +321,6 @@ export function createSyncEngine({
         const now = Date.now();
         const playing = isPlaying();
         const speedMultiplier = getSpeed();
-        // Speed in px/s (where 1.0 multiplier is 20 px/s in teleprompter-transport)
-        const currentSpeedPxPerSec = playing ? speedMultiplier * 20 : 0;
-        let accelerationPxPerSec2 = 0;
-
-        if (masterLastSpeed !== null && masterLastSpeedTime !== null) {
-            const dtSec = Math.max(0.05, (now - masterLastSpeedTime) / 1000);
-            accelerationPxPerSec2 = (currentSpeedPxPerSec - masterLastSpeed) / dtSec;
-            // Clamp wild acceleration spikes
-            accelerationPxPerSec2 = Math.max(-500, Math.min(500, accelerationPxPerSec2));
-            if (Math.abs(accelerationPxPerSec2) < 0.2) {
-                accelerationPxPerSec2 = 0;
-            }
-        }
-        masterLastSpeed = currentSpeedPxPerSec;
-        masterLastSpeedTime = now;
 
         const state = {
             sequence: ++syncSequence,
@@ -300,8 +329,6 @@ export function createSyncEngine({
             fraction: pos.fraction,
             playing,
             speed: speedMultiplier,
-            velocity: Number(currentSpeedPxPerSec.toFixed(2)),
-            acceleration: Number(accelerationPxPerSec2.toFixed(2)),
             interactionAgeMs: Math.max(0, performance.now() - lastMasterInteractionPerf),
             updatedByClient: now
         };
@@ -471,18 +498,99 @@ export function createSyncEngine({
                     seq !== pendingTopJump.sequence;
                 if (!confirmed) {
                     pendingTopJump = {at: nowPerf, sequence: seq, prompt: incomingState.prompt};
-                    console.warn("Held suspicious master jump to top", incomingState);
+                    console.warn("[JUMP_DETECTION: INCOMING_PACKET_TOP_SNAP_HELD]", {
+                        reason: "Incoming master packet mapped to near-top while follower is well inside document",
+                        timestamp: new Date().toISOString(),
+                        packet: {
+                            sequence: seq,
+                            script: incomingState.script,
+                            prompt: incomingState.prompt,
+                            fraction: incomingState.fraction,
+                            playing: incomingState.playing,
+                            serverTime: incomingState.serverTime,
+                            deliveryServerTime: incomingState.deliveryServerTime
+                        },
+                        followerLayout: {
+                            clampedTarget,
+                            rawTarget: target,
+                            viewportScrollTop: viewport.scrollTop,
+                            previousAcceptedTarget: previousAccepted,
+                            maxScrollTop: maxScroll,
+                            nearTopThresholdPx: Math.max(40, maxScroll * FOLLOW_TOP_GUARD_FRACTION),
+                            wellInsideThresholdPx: Math.max(300, maxScroll * FOLLOW_TOP_GUARD_FROM_FRACTION)
+                        },
+                        timing: {
+                            nowPerf,
+                            stateAgeAtReceiveMs: stateAgeAtReceive,
+                            transport
+                        }
+                    });
                     setSyncStatus("FOLLOW: ignored suspect top jump · " + transport, "warn");
                     return;
                 }
             }
             pendingTopJump = null;
 
+            // Discrepancy Guard: hold position for a couple of packets if there is a sudden large jump (>150px)
+            // e.g. when scrubbing/scrolling fast on master or transient out-of-sync packets
+            const referencePos = followTargetScrollTop ?? viewport.scrollTop;
+            if (referencePos !== null && Math.abs(clampedTarget - referencePos) > FOLLOW_DISCREPANCY_THRESHOLD_PX) {
+                const nowPerf = performance.now();
+                const seq = Number(incomingState.sequence) || 0;
+                const isMatchingTarget = pendingDiscrepantJump &&
+                    Math.abs(clampedTarget - pendingDiscrepantJump.target) <= 100;
+                const isWithinWindow = pendingDiscrepantJump &&
+                    (nowPerf - pendingDiscrepantJump.at) <= FOLLOW_DISCREPANCY_WINDOW_MS;
+                const isNewSeq = pendingDiscrepantJump &&
+                    seq !== pendingDiscrepantJump.sequence;
+
+                if (isMatchingTarget && isWithinWindow && isNewSeq) {
+                    pendingDiscrepantJump.count += 1;
+                    pendingDiscrepantJump.sequence = seq;
+                    pendingDiscrepantJump.at = nowPerf;
+                    pendingDiscrepantJump.target = clampedTarget;
+                } else {
+                    pendingDiscrepantJump = {
+                        count: 1,
+                        target: clampedTarget,
+                        sequence: seq,
+                        at: nowPerf
+                    };
+                }
+
+                if (pendingDiscrepantJump.count < FOLLOW_DISCREPANCY_CONFIRM_COUNT) {
+                    console.warn("[JUMP_DETECTION: PACKET_DISCREPANCY_HELD]", {
+                        reason: "Incoming packet target jumped >150px from current position; holding until confirmed",
+                        heldCount: pendingDiscrepantJump.count,
+                        neededCount: FOLLOW_DISCREPANCY_CONFIRM_COUNT,
+                        currentPosition: referencePos,
+                        suspectTarget: clampedTarget,
+                        deltaPx: clampedTarget - referencePos,
+                        viewportScrollTop: viewport.scrollTop,
+                        packet: {
+                            sequence: seq,
+                            prompt: incomingState.prompt,
+                            fraction: incomingState.fraction,
+                            playing: incomingState.playing,
+                            serverTime: incomingState.serverTime
+                        },
+                        timestamp: new Date().toISOString()
+                    });
+                    setSyncStatus("FOLLOW: holding position… · " + transport, "ok");
+                    return;
+                }
+                // Confirmed jump across multiple packets (intentional user seek or sustained fast scroll)
+                pendingDiscrepantJump = null;
+            } else {
+                pendingDiscrepantJump = null;
+            }
+
             rememberFreshRemoteState(incomingState, stateAgeAtReceive, receivedAt);
             const motionSignature = syncMotionSignature(latestRemoteState);
             if (motionSignature !== lastRemoteMotionSignature) {
                 lastRemoteMotionSignature = motionSignature;
                 lastRemoteMotionAt = performance.now();
+                transportCoordinator.notifyMotion();
             }
             updateMasterPositionMarker();
 
@@ -500,8 +608,6 @@ export function createSyncEngine({
             }
 
             const sequence = Number(latestRemoteState.sequence) || 0;
-            const velocity = Number.isFinite(Number(latestRemoteState.velocity)) ? Number(latestRemoteState.velocity) : null;
-            const acceleration = Number(latestRemoteState.acceleration) || 0;
 
             const previousSample = interpolator.getLastSample();
             if (previousSample) {
@@ -511,10 +617,35 @@ export function createSyncEngine({
                     const curDir = interpolator.getDirection();
                     if (curDir !== 0 && newDirection !== curDir) {
                         interpolator.reset();
-                        interpolator.addSample(previousSample, previousSample.serverMs, receivePerf);
+                        // Only seed previous sample if it is close to current viewport position
+                        if (Math.abs(previousSample.target - viewport.scrollTop) <= 200) {
+                            interpolator.addSample(previousSample, previousSample.serverMs, receivePerf);
+                        }
                     }
                     interpolator.setDirection(newDirection);
                 }
+            }
+
+            // Detect and trace large sudden jumps in accepted target scroll position
+            if (previousAccepted !== null && Math.abs(clampedTarget - previousAccepted) > 150) {
+                console.warn("[JUMP_DETECTION: PACKET_TARGET_DISCREPANCY]", {
+                    reason: "New target scroll position jumped >150px from previously accepted target (confirmed)",
+                    previousAcceptedTarget: previousAccepted,
+                    newClampedTarget: clampedTarget,
+                    rawTarget: target,
+                    deltaPx: clampedTarget - previousAccepted,
+                    viewportScrollTop: viewport.scrollTop,
+                    maxScrollTop: maxScroll,
+                    packet: {
+                        sequence,
+                        prompt: incomingState.prompt,
+                        fraction: incomingState.fraction,
+                        playing: incomingState.playing,
+                        speed: incomingState.speed,
+                        serverTime: incomingState.serverTime
+                    },
+                    timestamp: new Date().toISOString()
+                });
             }
 
             if (!previousSample || previousSample.sequence !== sequence || previousSample.serverMs !== sampleServerMs) {
@@ -522,8 +653,6 @@ export function createSyncEngine({
                     serverMs: sampleServerMs,
                     target: clampedTarget,
                     playing: remotePlaying,
-                    velocity,
-                    acceleration,
                     sequence
                 }, sampleServerMs, receivePerf);
             }
@@ -545,188 +674,15 @@ export function createSyncEngine({
             setSyncStatus("FOLLOW: script mismatch", "error");
         }
     }
-
-    async function pollMasterState() {
-        if (syncMode !== "follow" || followTransport !== "poll") return;
-        const t1 = (performance.timeOrigin ? performance.timeOrigin + performance.now() : Date.now());
-        try {
-            const response = await fetch(syncUrl() + "&t1=" + t1 + "&_=" + Date.now(), {
-                method: "GET",
-                cache: "no-store"
-            });
-            if (!response.ok) throw new Error("HTTP " + response.status);
-
-            const t4 = (performance.timeOrigin ? performance.timeOrigin + performance.now() : Date.now());
-            const body = await response.json();
-            const state = body && body.state ? body.state : null;
-            if (body && Number.isFinite(Number(body.serverTime))) {
-                ptpClock.recordSample(t1, Number(body.serverTime), t4);
-                if (state) {
-                    state.deliveryServerTime = Number(body.serverTime);
-                }
-            }
-            await handleRemoteState(state, "POLL");
-        } catch (err) {
-            if (followingLive) {
-                setSyncStatus("FOLLOW: connection lost · POLL", "error");
-            }
-        }
-    }
-
-    function stopFollowerPollingFallback() {
-        if (followTimer !== null) {
-            clearTimeout(followTimer);
-            followTimer = null;
-        }
-    }
-
     function stopFollowerTransport() {
-        stopFollowerPollingFallback();
-        clearSseFallbackTimer();
-
-        if (followEventSource) {
-            followEventSource.close();
-            followEventSource = null;
-        }
-
-        followTransport = "none";
-        sseHasOpened = false;
-    }
-
-    function startFollowerPollingFallback() {
-        if (syncMode !== "follow") return;
-        if (followTransport === "poll") return;
-
-        followTransport = "poll";
-        stopFollowerPollingFallback();
-        if (followingLive) {
-            setSyncStatus("FOLLOW: fallback · POLL", "warn");
-        }
-        scheduleNextFollowerPoll(0);
-    }
-
-    function clearSseFallbackTimer() {
-        if (sseFallbackTimer !== null) {
-            clearTimeout(sseFallbackTimer);
-            sseFallbackTimer = null;
-        }
-    }
-
-    function armSseFallbackTimer(delay = 8000) {
-        clearSseFallbackTimer();
-        if (syncMode !== "follow") return;
-
-        sseFallbackTimer = setTimeout(() => {
-            sseFallbackTimer = null;
-            if (syncMode === "follow" && (!followEventSource || followEventSource.readyState !== EventSource.OPEN)) {
-                startFollowerPollingFallback();
-            }
-        }, delay);
-    }
-
-    function startFollowerSse() {
-        if (syncMode !== "follow") return;
-
-        if (!("EventSource" in window)) {
-            startFollowerPollingFallback();
-            return;
-        }
-
-        if (followEventSource) {
-            followEventSource.close();
-            followEventSource = null;
-        }
-
-        sseHasOpened = false;
-        followTransport = "sse";
-        setSyncStatus("FOLLOW: connecting · SSE", "warn");
-
-        const events = new EventSource(sseUrl());
-        followEventSource = events;
-        armSseFallbackTimer(5000);
-
-        events.onopen = () => {
-            if (events !== followEventSource || syncMode !== "follow") return;
-            sseHasOpened = true;
-            followTransport = "sse";
-            lastServerHeartbeatPerf = performance.now();
-            clearSseFallbackTimer();
-            stopFollowerPollingFallback();
-            if (followingLive) {
-                setSyncStatus("FOLLOW: connected · SSE", "ok");
-            }
-        };
-
-        events.onmessage = (event) => {
-            if (events !== followEventSource || syncMode !== "follow") return;
-
-            let state = null;
-            try {
-                state = JSON.parse(event.data);
-            } catch (_) {
-                if (followingLive) {
-                    setSyncStatus("FOLLOW: bad SSE data", "error");
-                }
-                return;
-            }
-
-            handleRemoteState(state, "SSE").catch((e) => {
-                if (followingLive) {
-                    console.error("Error handling SSE state", e);
-                    setSyncStatus("FOLLOW: SSE processing error", "error");
-                }
-            });
-        };
-
-        events.addEventListener('annotation-revision', (event) => {
-            if (events !== followEventSource) return;
-            lastServerHeartbeatPerf = performance.now();
-            handleAnnotationRevisionEvent(event);
-        });
-
-        events.addEventListener('cue-revision', (event) => {
-            if (events !== followEventSource) return;
-            lastServerHeartbeatPerf = performance.now();
-            handleCueRevisionEvent(event);
-        });
-
-        events.addEventListener('department-settings', (event) => {
-            if (events !== followEventSource) return;
-            lastServerHeartbeatPerf = performance.now();
-            handleDepartmentSettingsEvent(event);
-        });
-
-        events.addEventListener('server-heartbeat', (event) => {
-            if (events !== followEventSource) return;
-            const nowPerf = performance.now();
-            lastServerHeartbeatPerf = nowPerf;
-            if (event && event.data) {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data && Number.isFinite(Number(data.serverTime))) {
-                        const localEpoch = (performance.timeOrigin ? performance.timeOrigin + nowPerf : Date.now());
-                        // Heartbeat is one-way passive broadcast; record with estimated half-RTT
-                        const assumedRtt = ptpClock.synced ? Math.max(10, ptpClock.rttMs) : 50;
-                        ptpClock.recordSample(localEpoch - assumedRtt, Number(data.serverTime), localEpoch);
-                    }
-                } catch (_) {}
-            }
-            updateMasterHealthStatus();
-        });
-
-        events.onerror = () => {
-            if (events !== followEventSource || syncMode !== "follow") return;
-            if (followingLive) {
-                setSyncStatus("FOLLOW: reconnecting · SSE", "warn");
-            }
-            armSseFallbackTimer(sseHasOpened ? 10000 : 5000);
-        };
+        transportCoordinator.stop();
     }
 
     function startFollowerTransport() {
-        stopFollowerTransport();
-        startFollowerSse();
+        transportCoordinator.start();
     }
+
+    let lastAnimatedScrollTop = null;
 
     function followAnimationStep(timestamp) {
         if (
@@ -735,6 +691,7 @@ export function createSyncEngine({
             !interpolator.hasSamples()
         ) {
             syncAnimationRunning = false;
+            lastAnimatedScrollTop = null;
             return;
         }
 
@@ -745,15 +702,40 @@ export function createSyncEngine({
             forgetRemoteState();
             setSyncStatus("FOLLOW: waiting for fresh master state", "warn");
             syncAnimationRunning = false;
+            lastAnimatedScrollTop = null;
             return;
         }
 
-        const desired = interpolator.computeDesiredPosition(maxScrollTop(), performance.now());
+        const maxScroll = maxScrollTop();
+        const desired = interpolator.computeDesiredPosition(maxScroll, performance.now());
         if (desired === null) {
             syncAnimationRunning = false;
+            lastAnimatedScrollTop = null;
             return;
         }
 
+        // Trace any abrupt frame-to-frame jump (>100px) during animation rendering
+        if (lastAnimatedScrollTop !== null && Math.abs(desired - lastAnimatedScrollTop) > 100) {
+            console.warn("[JUMP_DETECTION: FRAME_RENDER_JUMP]", {
+                reason: "Follower animation frame jumped >100px in a single frame",
+                fromScrollTop: lastAnimatedScrollTop,
+                toDesired: desired,
+                deltaPx: desired - lastAnimatedScrollTop,
+                currentViewportScrollTop: viewport.scrollTop,
+                maxScrollTop: maxScroll,
+                interpolatorSamplesCount: interpolator.getSamplesCount(),
+                interpolatorDirection: interpolator.getDirection(),
+                latestRemoteState: latestRemoteState ? {
+                    sequence: latestRemoteState.sequence,
+                    prompt: latestRemoteState.prompt,
+                    fraction: latestRemoteState.fraction,
+                    playing: latestRemoteState.playing
+                } : null,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        lastAnimatedScrollTop = desired;
         viewport.scrollTop = desired;
         setScrollPos(viewport.scrollTop);
         scheduleContextUpdate();
@@ -777,10 +759,6 @@ export function createSyncEngine({
             masterAbortController = null;
         }
         masterRequestInFlight = false;
-        if (followTimer !== null) {
-            clearTimeout(followTimer);
-            followTimer = null;
-        }
     }
 
     function setSyncMode(mode) {
@@ -796,6 +774,8 @@ export function createSyncEngine({
         followingLive = true;
         document.body.classList.remove("follow-paused");
         followTargetScrollTop = null;
+        pendingTopJump = null;
+        pendingDiscrepantJump = null;
         interpolator.reset();
         lastRemotePlaying = null;
         if (remoteStateExpiryTimer !== null) {
@@ -872,6 +852,8 @@ export function createSyncEngine({
         if (syncMode === "follow" && followingLive) {
             followingLive = false;
             followTargetScrollTop = null;
+            pendingTopJump = null;
+            pendingDiscrepantJump = null;
             interpolator.reset();
             lastRemotePlaying = null;
             document.body.classList.add("follow-paused");
@@ -886,6 +868,8 @@ export function createSyncEngine({
         if (syncMode !== "follow") return;
         stopDragMomentum();
         followingLive = true;
+        pendingTopJump = null;
+        pendingDiscrepantJump = null;
         interpolator.reset();
         lastRemotePlaying = null;
         document.body.classList.remove("follow-paused");

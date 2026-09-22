@@ -582,14 +582,16 @@ export function createAnnotationsController({
     async function handleAnnotationRevisionEvent(event) {
         const activeDepartment = getActiveDepartment();
         const currentScriptId = getCurrentScriptId();
-        if (!activeDepartment || !currentScriptId) return;
+        if (!activeDepartment || !currentScriptId || !event) return;
         let body = null;
-        try {
-            body = JSON.parse(event.data);
-        } catch (_) {
-            return;
+        if (typeof event.data === "string") {
+            try { body = JSON.parse(event.data); } catch (_) { return; }
+        } else if (event.data && typeof event.data === "object") {
+            body = event.data;
+        } else if (typeof event === "object") {
+            body = event;
         }
-        const revisions = body && body.revisions;
+        const revisions = body && body.revisions ? body.revisions : body;
         if (!revisions || typeof revisions !== 'object') return;
         const entry = revisions[currentScriptId + '_' + activeDepartment];
         if (!entry || Number(entry.revision) <= annotationRevision) return;

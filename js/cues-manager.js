@@ -638,9 +638,32 @@ export function createCuesManager({
 
     function handleCueRevisionEvent(event) {
         const activeDepartment = getActiveDepartment();
-        if (!activeDepartment || !event || event.dept !== activeDepartment) return;
-        const rev = Number(event.revision) || 0;
-        if (rev <= cueRevision) return;
+        const currentScriptId = getCurrentScriptId();
+        if (!activeDepartment || !event) return;
+
+        // Support direct event object ({dept, revision}), SSE MessageEvent with JSON string in event.data,
+        // or revision map ({revisions: {...}} or {<script_dept>: {revision, department, ...}}).
+        let rev = null;
+        if (event.dept === activeDepartment && Number.isFinite(Number(event.revision))) {
+            rev = Number(event.revision);
+        } else {
+            let data = event.data;
+            if (typeof data === "string") {
+                try { data = JSON.parse(data); } catch (_) { return; }
+            } else if (!data && typeof event === "object") {
+                data = event;
+            }
+            const revisions = data && data.revisions ? data.revisions : data;
+            if (revisions && typeof revisions === "object") {
+                const key = currentScriptId ? (currentScriptId + "_" + activeDepartment) : null;
+                const entry = key && revisions[key] ? revisions[key] : Object.values(revisions).find(e => e && e.department === activeDepartment);
+                if (entry && Number.isFinite(Number(entry.revision))) {
+                    rev = Number(entry.revision);
+                }
+            }
+        }
+
+        if (rev === null || rev <= cueRevision) return;
         cueRevision = rev;
         loadDepartmentCues({preserveExisting: true});
     }

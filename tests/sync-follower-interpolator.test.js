@@ -40,10 +40,10 @@ describe('FollowerInterpolator', () => {
     interpolator.setDirection(1);
 
     const baseT = 20000;
-    // 3 samples spaced 250ms apart
-    interpolator.addSample({ serverMs: baseT, target: 200, playing: true, acceleration: 10 }, baseT, 1000);
-    interpolator.addSample({ serverMs: baseT + 250, target: 210, playing: true, acceleration: 10 }, baseT + 250, 1250);
-    interpolator.addSample({ serverMs: baseT + 500, target: 225, playing: true, acceleration: 10 }, baseT + 500, 1500);
+    // 3 samples spaced 250ms apart with accelerating position targets
+    interpolator.addSample({ serverMs: baseT, target: 200, playing: true }, baseT, 1000);
+    interpolator.addSample({ serverMs: baseT + 250, target: 210, playing: true }, baseT + 250, 1250);
+    interpolator.addSample({ serverMs: baseT + 500, target: 225, playing: true }, baseT + 500, 1500);
 
     const desired = interpolator.computeDesiredPosition(2000, 1500);
     assert.ok(Number.isFinite(desired));
@@ -71,7 +71,7 @@ describe('FollowerInterpolator', () => {
     assert.ok(clamped >= 400, `Expected position to stay near 450, got ${clamped}`);
   });
 
-  test('fuses position, velocity, and acceleration in motion prediction', () => {
+  test('computes velocity and acceleration follower-side in motion prediction', () => {
     const interpolator = new FollowerInterpolator({
       followBufferMs: 250,
       followAverageWindowMs: 2000
@@ -80,24 +80,26 @@ describe('FollowerInterpolator', () => {
     interpolator.setDirection(1);
 
     const baseT = 50000;
-    // Master is moving at 40 px/s with 5 px/s^2 acceleration
+    // Follower receives only position targets spaced over time; computes velocity & acceleration locally
     interpolator.addSample({
       serverMs: baseT,
       target: 1000,
-      playing: true,
-      velocity: 40,
-      acceleration: 5
+      playing: true
     }, baseT, 1000);
 
     interpolator.addSample({
       serverMs: baseT + 250,
       target: 1010,
-      playing: true,
-      velocity: 40,
-      acceleration: 5
+      playing: true
     }, baseT + 250, 1250);
 
-    const pos = interpolator.computeDesiredPosition(5000, 1250);
+    interpolator.addSample({
+      serverMs: baseT + 500,
+      target: 1025,
+      playing: true
+    }, baseT + 500, 1500);
+
+    const pos = interpolator.computeDesiredPosition(5000, 1500);
     assert.ok(Number.isFinite(pos));
     assert.ok(pos >= 1000, `Position ${pos} should be forward of base sample 1000`);
   });

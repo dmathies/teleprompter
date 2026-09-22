@@ -206,13 +206,33 @@ export function createDepartmentSettings({
 
     function handleDepartmentSettingsEvent(event) {
         const activeDepartment = getActiveDepartment();
-        if (!activeDepartment || !event || event.dept !== activeDepartment) return;
-        const rev = Number(event.revision) || 0;
+        if (!activeDepartment || !event) return;
+
+        let data = event.data;
+        if (typeof data === "string") {
+            try { data = JSON.parse(data); } catch (_) { return; }
+        } else if (!data && typeof event === "object") {
+            data = event;
+        }
+
+        // data can be {departments: {<dept>: {revision, annotationMargin}}}, or {dept, revision, annotationMargin}
+        let deptEntry = null;
+        if (data && data.departments && data.departments[activeDepartment]) {
+            deptEntry = data.departments[activeDepartment];
+        } else if (data && data.dept === activeDepartment) {
+            deptEntry = data;
+        } else if (event.dept === activeDepartment) {
+            deptEntry = event;
+        }
+
+        if (!deptEntry) return;
+
+        const rev = Number(deptEntry.revision) || 0;
         if (rev <= departmentSettingsRevision) return;
         if (departmentSettingsSavePending || departmentSettingsSaveRunning) return;
         departmentSettingsRevision = rev;
-        if (event.annotationMargin) {
-            departmentMargin = normalizeDepartmentMargin(event.annotationMargin);
+        if (deptEntry.annotationMargin) {
+            departmentMargin = normalizeDepartmentMargin(deptEntry.annotationMargin);
             applyDisplaySettings();
         } else {
             loadCentralDepartmentSettings();
