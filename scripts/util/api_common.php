@@ -1,35 +1,35 @@
 <?php
-// scripts/api_common.php
+// scripts/util/api_common.php
 // Shared utility helpers for teleprompter PHP endpoints.
 
 require_once __DIR__ . '/auth_cookie.php';
 
 const TP_ALLOWED_DEPARTMENTS = ['FS', 'LX', 'SND', 'STG'];
 
-function tp_respond_json(int $status, array $body): never {
+function respondJson(int $status, array $body): never {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($body, JSON_UNESCAPED_SLASHES);
     exit;
 }
 
-function tp_valid_id(string $value): bool {
+function isValidId(string $value): bool {
     return (bool)preg_match('/^[A-Za-z0-9_-]+$/', $value);
 }
 
-function tp_request_json(): array {
+function getRequestJson(): array {
     $raw = file_get_contents('php://input');
     if ($raw === false || $raw === '') return [];
     $data = json_decode($raw, true);
     return is_array($data) ? $data : [];
 }
 
-function tp_get_header(string $name): string {
+function getHeader(string $name): string {
     $serverName = 'HTTP_' . strtoupper(str_replace('-', '_', $name));
     return $_SERVER[$serverName] ?? '';
 }
 
-function tp_flock_with_timeout($fp, int $operation, float $timeoutSeconds = 2.0): bool {
+function flockWithTimeout($fp, int $operation, float $timeoutSeconds = 2.0): bool {
     $start = microtime(true);
     do {
         if (@flock($fp, $operation | LOCK_NB)) {
@@ -40,11 +40,11 @@ function tp_flock_with_timeout($fp, int $operation, float $timeoutSeconds = 2.0)
     return false;
 }
 
-function tp_read_json_locked(string $file): ?array {
+function readJsonLocked(string $file): ?array {
     if (!is_file($file)) return null;
     $fp = @fopen($file, 'r');
     if (!$fp) return null;
-    if (!tp_flock_with_timeout($fp, LOCK_SH)) {
+    if (!flockWithTimeout($fp, LOCK_SH)) {
         fclose($fp);
         return null;
     }
@@ -56,14 +56,14 @@ function tp_read_json_locked(string $file): ?array {
     return is_array($data) ? $data : null;
 }
 
-function tp_write_json_locked(string $file, array $data, bool $pretty = false): bool {
+function writeJsonLocked(string $file, array $data, bool $pretty = false): bool {
     $dir = dirname($file);
     if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
         return false;
     }
     $fp = @fopen($file, 'c+');
     if (!$fp) return false;
-    if (!tp_flock_with_timeout($fp, LOCK_EX)) {
+    if (!flockWithTimeout($fp, LOCK_EX)) {
         fclose($fp);
         return false;
     }
@@ -79,8 +79,8 @@ function tp_write_json_locked(string $file, array $data, bool $pretty = false): 
     return $ok;
 }
 
-function tp_load_passwords(): array {
-    $passwordConfig = require __DIR__ . '/passwords.php';
+function loadPasswords(): array {
+    $passwordConfig = require dirname(__DIR__) . '/passwords.php';
     if (!is_array($passwordConfig)) {
         return ['master' => '', 'departments' => []];
     }
@@ -90,30 +90,30 @@ function tp_load_passwords(): array {
     ];
 }
 
-function tp_require_department_editor(string $dept, array $passwords): void {
-    $provided = tp_get_header('X-Cue-Key');
+function requireDepartmentEditor(string $dept, array $passwords): void {
+    $provided = getHeader('X-Cue-Key');
     $expected = $passwords[$dept] ?? null;
     $role = 'dept_' . strtolower($dept);
 
     $headerOk = is_string($expected) && $expected !== '' &&
         $provided !== '' && hash_equals($expected, $provided);
-    $cookieOk = is_string($expected) && tp_auth_cookie_valid($role, $expected);
+    $cookieOk = is_string($expected) && isAuthCookieValid($role, $expected);
 
     if (!$headerOk && !$cookieOk) {
-        tp_respond_json(403, ['ok' => false, 'error' => 'Authentication failed']);
+        respondJson(403, ['ok' => false, 'error' => 'Authentication failed']);
     }
 
     if ($headerOk) {
-        tp_issue_auth_cookie($role, $expected);
+        issueAuthCookie($role, $expected);
     }
 }
 
-function tp_update_revision_signal(string $signalFile, string $stateDir, string $script, string $dept, int $revision): void {
+function updateRevisionSignal(string $signalFile, string $stateDir, string $script, string $dept, int $revision): void {
     if (!is_dir($stateDir) && !mkdir($stateDir, 0775, true) && !is_dir($stateDir)) return;
 
     $fp = @fopen($signalFile, 'c+');
     if ($fp === false) return;
-    if (!tp_flock_with_timeout($fp, LOCK_EX)) { fclose($fp); return; }
+    if (!flockWithTimeout($fp, LOCK_EX)) { fclose($fp); return; }
 
     rewind($fp);
     $raw = stream_get_contents($fp);

@@ -40,7 +40,7 @@
 const status = document.getElementById("status");
 const log = document.getElementById("log");
 
-const events = new EventSource("/scripts/sse_test.php");
+const events = new EventSource("/scripts/testing/sse_test.php");
 
 events.onopen = () => {
   status.textContent = "Connected";

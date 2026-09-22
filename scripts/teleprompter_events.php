@@ -46,7 +46,7 @@ $lastCueSignature = null;
 $lastDepartmentSettingsSignature = null;
 $lastEventId = $_SERVER['HTTP_LAST_EVENT_ID'] ?? '';
 
-function read_state_locked(string $file): ?array {
+function readStateLocked(string $file): ?array {
     if (!is_file($file)) return null;
 
     $fp = @fopen($file, 'r');
@@ -67,26 +67,25 @@ function read_state_locked(string $file): ?array {
     return is_array($state) ? $state : null;
 }
 
-
-function emit_annotation_revisions(array $map): void {
+function emitAnnotationRevisions(array $map): void {
     echo "event: annotation-revision\n";
     echo 'data: ' . json_encode(['revisions' => $map], JSON_UNESCAPED_SLASHES) . "\n\n";
     flush();
 }
 
-function emit_cue_revisions(array $map): void {
+function emitCueRevisions(array $map): void {
     echo "event: cue-revision\n";
     echo 'data: ' . json_encode(['revisions' => $map], JSON_UNESCAPED_SLASHES) . "\n\n";
     flush();
 }
 
-function emit_department_settings(array $settings): void {
+function emitDepartmentSettings(array $settings): void {
     echo "event: department-settings\n";
     echo 'data: ' . json_encode($settings, JSON_UNESCAPED_SLASHES) . "\n\n";
     flush();
 }
 
-function emit_state(array $state): void {
+function emitState(array $state): void {
     $sequence = isset($state['sequence']) ? (string)$state['sequence'] : '';
 
     if ($sequence !== '') {
@@ -109,16 +108,16 @@ flush();
 while ((microtime(true) - $startedAt) < $maxLifetimeSeconds) {
     if (connection_aborted()) break;
 
-    $state = read_state_locked($file);
-    $annotationRevisions = read_state_locked($annotationSignalFile);
-    $cueRevisions = read_state_locked($cueSignalFile);
-    $departmentSettings = read_state_locked($departmentSettingsFile);
+    $state = readStateLocked($file);
+    $annotationRevisions = readStateLocked($annotationSignalFile);
+    $cueRevisions = readStateLocked($cueSignalFile);
+    $departmentSettings = readStateLocked($departmentSettingsFile);
 
     if ($departmentSettings !== null) {
         $settingsSignature = json_encode($departmentSettings, JSON_UNESCAPED_SLASHES);
         if ($settingsSignature !== false && $settingsSignature !== $lastDepartmentSettingsSignature) {
             $lastDepartmentSettingsSignature = $settingsSignature;
-            emit_department_settings($departmentSettings);
+            emitDepartmentSettings($departmentSettings);
             $lastHeartbeatAt = microtime(true);
         }
     }
@@ -127,7 +126,7 @@ while ((microtime(true) - $startedAt) < $maxLifetimeSeconds) {
         $cueSignature = json_encode($cueRevisions, JSON_UNESCAPED_SLASHES);
         if ($cueSignature !== false && $cueSignature !== $lastCueSignature) {
             $lastCueSignature = $cueSignature;
-            emit_cue_revisions($cueRevisions);
+            emitCueRevisions($cueRevisions);
             $lastHeartbeatAt = microtime(true);
         }
     }
@@ -136,7 +135,7 @@ while ((microtime(true) - $startedAt) < $maxLifetimeSeconds) {
         $annotationSignature = json_encode($annotationRevisions, JSON_UNESCAPED_SLASHES);
         if ($annotationSignature !== false && $annotationSignature !== $lastAnnotationSignature) {
             $lastAnnotationSignature = $annotationSignature;
-            emit_annotation_revisions($annotationRevisions);
+            emitAnnotationRevisions($annotationRevisions);
             $lastHeartbeatAt = microtime(true);
         }
     }
@@ -153,7 +152,7 @@ while ((microtime(true) - $startedAt) < $maxLifetimeSeconds) {
             // On reconnect, avoid immediately replaying the exact event the
             // browser says it already received. A newer state is sent at once.
             if ($lastEventId === '' || $sequence === '' || $sequence !== $lastEventId) {
-                emit_state($state);
+                emitState($state);
                 $lastEventId = '';
                 $lastHeartbeatAt = microtime(true);
             }

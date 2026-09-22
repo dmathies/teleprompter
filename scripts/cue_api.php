@@ -3,19 +3,19 @@
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('X-Content-Type-Options: nosniff');
 
-require_once __DIR__ . '/api_common.php';
+require_once __DIR__ . '/util/api_common.php';
 
 $catalog = require __DIR__ . '/script_catalog.php';
-$passwords = tp_load_passwords()['departments'];
+$passwords = loadPasswords()['departments'];
 $cueDir = dirname(__DIR__) . '/show-cues';
 $stateDir = __DIR__ . '/teleprompter_state';
 $signalFile = $stateDir . '/cue_revisions.json';
 
-function cue_file(string $dir, string $script, string $dept): string {
+function cueFile(string $dir, string $script, string $dept): string {
     return $dir . '/' . $script . '_' . $dept . '.json';
 }
 
-function empty_cue_doc(string $script, string $dept): array {
+function emptyCueDoc(string $script, string $dept): array {
     return [
         'script' => $script,
         'department' => $dept,
@@ -24,8 +24,8 @@ function empty_cue_doc(string $script, string $dept): array {
     ];
 }
 
-function normalize_cue_doc($doc, string $script, string $dept): array {
-    if (!is_array($doc)) return empty_cue_doc($script, $dept);
+function normalizeCueDoc($doc, string $script, string $dept): array {
+    if (!is_array($doc)) return emptyCueDoc($script, $dept);
     return [
         'script' => $script,
         'department' => $dept,
@@ -34,10 +34,10 @@ function normalize_cue_doc($doc, string $script, string $dept): array {
     ];
 }
 
-function validate_cue(array $cue): array {
+function validateCue(array $cue): array {
     $id = isset($cue['id']) && is_string($cue['id']) ? trim($cue['id']) : '';
     if ($id !== '' && !preg_match('/^[A-Za-z0-9_-]{1,80}$/', $id)) {
-        tp_respond_json(400, ['ok' => false, 'error' => 'Invalid cue id']);
+        respondJson(400, ['ok' => false, 'error' => 'Invalid cue id']);
     }
 
     $number = isset($cue['number']) && is_string($cue['number']) ? trim($cue['number']) : '';
@@ -47,19 +47,19 @@ function validate_cue(array $cue): array {
     $prompt = isset($anchor['prompt']) && is_string($anchor['prompt']) ? trim($anchor['prompt']) : '';
     $anchorType = isset($anchor['type']) && is_string($anchor['type']) ? strtolower(trim($anchor['type'])) : 'paragraph';
 
-    if ($number === '' || strlen($number) > 24) tp_respond_json(400, ['ok'=>false,'error'=>'Cue number is required']);
-    if (strlen($description) > 120) tp_respond_json(400, ['ok'=>false,'error'=>'Description too long']);
-    if (!preg_match('/^#[0-9A-Fa-f]{6}$/', $color)) tp_respond_json(400, ['ok'=>false,'error'=>'Invalid colour']);
-    if (!preg_match('/^p[0-9]{6}$/', $prompt)) tp_respond_json(400, ['ok'=>false,'error'=>'Invalid prompt anchor']);
-    if (!in_array($anchorType, ['paragraph', 'word'], true)) tp_respond_json(400, ['ok'=>false,'error'=>'Invalid anchor type']);
+    if ($number === '' || strlen($number) > 24) respondJson(400, ['ok' => false, 'error' => 'Cue number is required']);
+    if (strlen($description) > 120) respondJson(400, ['ok' => false, 'error' => 'Description too long']);
+    if (!preg_match('/^#[0-9A-Fa-f]{6}$/', $color)) respondJson(400, ['ok' => false, 'error' => 'Invalid colour']);
+    if (!preg_match('/^p[0-9]{6}$/', $prompt)) respondJson(400, ['ok' => false, 'error' => 'Invalid prompt anchor']);
+    if (!in_array($anchorType, ['paragraph', 'word'], true)) respondJson(400, ['ok' => false, 'error' => 'Invalid anchor type']);
 
     $anchorFraction = $anchor['fraction'] ?? 0;
     if (!is_numeric($anchorFraction)) {
-        tp_respond_json(400, ['ok'=>false,'error'=>'Invalid cue start position']);
+        respondJson(400, ['ok' => false, 'error' => 'Invalid cue start position']);
     }
     $anchorFraction = (float)$anchorFraction;
     if ($anchorFraction < 0 || $anchorFraction > 1) {
-        tp_respond_json(400, ['ok'=>false,'error'=>'Invalid cue start position']);
+        respondJson(400, ['ok' => false, 'error' => 'Invalid cue start position']);
     }
 
     $normalizedAnchor = [
@@ -73,16 +73,16 @@ function validate_cue(array $cue): array {
         $wordText = isset($anchor['text']) && is_string($anchor['text']) ? trim($anchor['text']) : '';
 
         if (!is_int($wordIndex) && !(is_string($wordIndex) && ctype_digit($wordIndex))) {
-            tp_respond_json(400, ['ok'=>false,'error'=>'Invalid word anchor']);
+            respondJson(400, ['ok' => false, 'error' => 'Invalid word anchor']);
         }
 
         $wordIndex = (int)$wordIndex;
         if ($wordIndex < 0 || $wordIndex > 10000) {
-            tp_respond_json(400, ['ok'=>false,'error'=>'Invalid word anchor']);
+            respondJson(400, ['ok' => false, 'error' => 'Invalid word anchor']);
         }
 
         if (strlen($wordText) > 120) {
-            tp_respond_json(400, ['ok'=>false,'error'=>'Trigger word too long']);
+            respondJson(400, ['ok' => false, 'error' => 'Trigger word too long']);
         }
 
         $normalizedAnchor['wordIndex'] = $wordIndex;
@@ -95,14 +95,14 @@ function validate_cue(array $cue): array {
             ? trim($cue['endAnchor']['prompt']) : '';
         $endFraction = $cue['endAnchor']['fraction'] ?? 0;
         if (!preg_match('/^p[0-9]{6}$/', $endPrompt)) {
-            tp_respond_json(400, ['ok'=>false,'error'=>'Invalid end prompt']);
+            respondJson(400, ['ok' => false, 'error' => 'Invalid end prompt']);
         }
         if (!is_numeric($endFraction)) {
-            tp_respond_json(400, ['ok'=>false,'error'=>'Invalid end position']);
+            respondJson(400, ['ok' => false, 'error' => 'Invalid end position']);
         }
         $endFraction = (float)$endFraction;
         if ($endFraction < 0 || $endFraction > 1) {
-            tp_respond_json(400, ['ok'=>false,'error'=>'Invalid end position']);
+            respondJson(400, ['ok' => false, 'error' => 'Invalid end position']);
         }
         $normalizedEndAnchor = [
             'prompt' => $endPrompt,
@@ -125,45 +125,45 @@ $action = $_GET['action'] ?? 'get';
 if ($action === 'get') {
     $script = isset($_GET['script']) ? (string)$_GET['script'] : '';
     $dept = isset($_GET['dept']) ? strtoupper((string)$_GET['dept']) : '';
-    if (!tp_valid_id($script) || !isset($catalog[$script]) || !in_array($dept, TP_ALLOWED_DEPARTMENTS, true)) {
-        tp_respond_json(404, ['ok'=>false,'error'=>'Unknown script or department']);
+    if (!isValidId($script) || !isset($catalog[$script]) || !in_array($dept, TP_ALLOWED_DEPARTMENTS, true)) {
+        respondJson(404, ['ok' => false, 'error' => 'Unknown script or department']);
     }
-    $rawDoc = tp_read_json_locked(cue_file($cueDir, $script, $dept));
-    $doc = normalize_cue_doc($rawDoc, $script, $dept);
-    tp_respond_json(200, ['ok'=>true] + $doc);
+    $rawDoc = readJsonLocked(cueFile($cueDir, $script, $dept));
+    $doc = normalizeCueDoc($rawDoc, $script, $dept);
+    respondJson(200, ['ok' => true] + $doc);
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    tp_respond_json(405, ['ok'=>false,'error'=>'POST required']);
+    respondJson(405, ['ok' => false, 'error' => 'POST required']);
 }
 
-$data = tp_request_json();
+$data = getRequestJson();
 $dept = isset($data['department']) ? strtoupper((string)$data['department']) : '';
 if (!in_array($dept, TP_ALLOWED_DEPARTMENTS, true)) {
-    tp_respond_json(404, ['ok'=>false,'error'=>'Unknown department']);
+    respondJson(404, ['ok' => false, 'error' => 'Unknown department']);
 }
 if ($action === 'logout') {
-    tp_clear_auth_cookie('dept_' . strtolower($dept));
-    tp_respond_json(200, ['ok'=>true, 'department'=>$dept]);
+    clearAuthCookie('dept_' . strtolower($dept));
+    respondJson(200, ['ok' => true, 'department' => $dept]);
 }
 
-tp_require_department_editor($dept, $passwords);
+requireDepartmentEditor($dept, $passwords);
 
 if ($action === 'auth') {
-    tp_respond_json(200, ['ok'=>true, 'department'=>$dept]);
+    respondJson(200, ['ok' => true, 'department' => $dept]);
 }
 
 $script = isset($data['script']) ? (string)$data['script'] : '';
-if (!tp_valid_id($script) || !isset($catalog[$script])) {
-    tp_respond_json(404, ['ok'=>false,'error'=>'Unknown script']);
+if (!isValidId($script) || !isset($catalog[$script])) {
+    respondJson(404, ['ok' => false, 'error' => 'Unknown script']);
 }
 
-$file = cue_file($cueDir, $script, $dept);
-$rawDoc = tp_read_json_locked($file);
-$doc = normalize_cue_doc($rawDoc, $script, $dept);
+$file = cueFile($cueDir, $script, $dept);
+$rawDoc = readJsonLocked($file);
+$doc = normalizeCueDoc($rawDoc, $script, $dept);
 
 if ($action === 'save') {
-    $cue = validate_cue(isset($data['cue']) && is_array($data['cue']) ? $data['cue'] : []);
+    $cue = validateCue(isset($data['cue']) && is_array($data['cue']) ? $data['cue'] : []);
     if ($cue['id'] === '') $cue['id'] = strtolower($dept) . '-' . bin2hex(random_bytes(8));
 
     $found = false;
@@ -177,16 +177,16 @@ if ($action === 'save') {
     if (!$found) $doc['cues'][] = $cue;
 } elseif ($action === 'delete') {
     $id = isset($data['id']) ? (string)$data['id'] : '';
-    if (!preg_match('/^[A-Za-z0-9_-]{1,80}$/', $id)) tp_respond_json(400, ['ok'=>false,'error'=>'Invalid cue id']);
+    if (!preg_match('/^[A-Za-z0-9_-]{1,80}$/', $id)) respondJson(400, ['ok' => false, 'error' => 'Invalid cue id']);
     $doc['cues'] = array_values(array_filter($doc['cues'], fn($c) => !is_array($c) || ($c['id'] ?? null) !== $id));
 } else {
-    tp_respond_json(404, ['ok'=>false,'error'=>'Unknown action']);
+    respondJson(404, ['ok' => false, 'error' => 'Unknown action']);
 }
 
 $doc['revision']++;
-if (!tp_write_json_locked($file, $doc, true)) {
-    tp_respond_json(500, ['ok'=>false,'error'=>'Could not write cue file']);
+if (!writeJsonLocked($file, $doc, true)) {
+    respondJson(500, ['ok' => false, 'error' => 'Could not write cue file']);
 }
 
-tp_update_revision_signal($signalFile, $stateDir, $script, $dept, $doc['revision']);
-tp_respond_json(200, ['ok'=>true, 'revision'=>$doc['revision'], 'cues'=>$doc['cues']]);
+updateRevisionSignal($signalFile, $stateDir, $script, $dept, $doc['revision']);
+respondJson(200, ['ok' => true, 'revision' => $doc['revision'], 'cues' => $doc['cues']]);

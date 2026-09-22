@@ -2,19 +2,19 @@
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('X-Content-Type-Options: nosniff');
 
-require_once __DIR__ . '/api_common.php';
+require_once __DIR__ . '/util/api_common.php';
 
 $catalog = require __DIR__ . '/script_catalog.php';
-$passwords = tp_load_passwords()['departments'];
+$passwords = loadPasswords()['departments'];
 $annotationDir = dirname(__DIR__) . '/show-annotations';
 $stateDir = __DIR__ . '/teleprompter_state';
 $signalFile = $stateDir . '/annotation_revisions.json';
 
-function annotation_file(string $dir, string $script, string $dept): string {
+function annotationFile(string $dir, string $script, string $dept): string {
     return $dir . '/' . $script . '_' . $dept . '.json';
 }
 
-function empty_doc(string $script, string $dept): array {
+function emptyDoc(string $script, string $dept): array {
     return [
         'script' => $script,
         'department' => $dept,
@@ -23,8 +23,8 @@ function empty_doc(string $script, string $dept): array {
     ];
 }
 
-function normalize_doc($doc, string $script, string $dept): array {
-    if (!is_array($doc)) return empty_doc($script, $dept);
+function normalizeDoc($doc, string $script, string $dept): array {
+    if (!is_array($doc)) return emptyDoc($script, $dept);
     return [
         'script' => $script,
         'department' => $dept,
@@ -34,9 +34,9 @@ function normalize_doc($doc, string $script, string $dept): array {
     ];
 }
 
-function validate_point($point, string $name): array {
+function validatePoint($point, string $name): array {
     if (!is_array($point) || count($point) !== 2 || !is_numeric($point[0]) || !is_numeric($point[1])) {
-        tp_respond_json(400, ['ok' => false, 'error' => 'Invalid ' . $name]);
+        respondJson(400, ['ok' => false, 'error' => 'Invalid ' . $name]);
     }
     $x = (float)$point[0];
     $y = (float)$point[1];
@@ -46,52 +46,52 @@ function validate_point($point, string $name): array {
     if (!is_finite($x) || !is_finite($y) ||
         $x < -2 || $x > 3 ||
         $y < -10 || $y > 50) {
-        tp_respond_json(400, ['ok' => false, 'error' => 'Invalid ' . $name]);
+        respondJson(400, ['ok' => false, 'error' => 'Invalid ' . $name]);
     }
     return [$x, $y];
 }
 
-function validate_annotation(array $ann): array {
+function validateAnnotation(array $ann): array {
     $id = isset($ann['id']) && is_string($ann['id']) ? trim($ann['id']) : '';
     if ($id !== '' && !preg_match('/^[A-Za-z0-9_-]{1,100}$/', $id)) {
-        tp_respond_json(400, ['ok' => false, 'error' => 'Invalid annotation id']);
+        respondJson(400, ['ok' => false, 'error' => 'Invalid annotation id']);
     }
 
     $type = isset($ann['type']) && is_string($ann['type']) ? strtolower(trim($ann['type'])) : '';
     if (!in_array($type, ['stroke', 'arrow', 'ellipse', 'text'], true)) {
-        tp_respond_json(400, ['ok' => false, 'error' => 'Invalid annotation type']);
+        respondJson(400, ['ok' => false, 'error' => 'Invalid annotation type']);
     }
 
     $prompt = isset($ann['prompt']) && is_string($ann['prompt']) ? trim($ann['prompt']) : '';
     if (!preg_match('/^p[0-9]{6}$/', $prompt)) {
-        tp_respond_json(400, ['ok' => false, 'error' => 'Invalid prompt anchor']);
+        respondJson(400, ['ok' => false, 'error' => 'Invalid prompt anchor']);
     }
 
     $color = isset($ann['color']) && is_string($ann['color']) ? trim($ann['color']) : '#ffeb3b';
     if (!preg_match('/^#[0-9A-Fa-f]{6}$/', $color)) {
-        tp_respond_json(400, ['ok' => false, 'error' => 'Invalid colour']);
+        respondJson(400, ['ok' => false, 'error' => 'Invalid colour']);
     }
 
     $width = isset($ann['width']) && is_numeric($ann['width']) ? (float)$ann['width'] : 3.0;
     if (!is_finite($width) || $width < 0.5 || $width > 24) {
-        tp_respond_json(400, ['ok' => false, 'error' => 'Invalid line width']);
+        respondJson(400, ['ok' => false, 'error' => 'Invalid line width']);
     }
 
     $fontPx = isset($ann['fontPx']) && is_numeric($ann['fontPx']) ? (float)$ann['fontPx'] : 42.0;
     if (!is_finite($fontPx) || $fontPx < 12 || $fontPx > 300) {
-        tp_respond_json(400, ['ok' => false, 'error' => 'Invalid reference font size']);
+        respondJson(400, ['ok' => false, 'error' => 'Invalid reference font size']);
     }
 
     $coordMode = isset($ann['coordMode']) && is_string($ann['coordMode'])
         ? strtolower(trim($ann['coordMode'])) : 'line';
     if (!in_array($coordMode, ['line', 'block'], true)) {
-        tp_respond_json(400, ['ok' => false, 'error' => 'Invalid annotation coordinate mode']);
+        respondJson(400, ['ok' => false, 'error' => 'Invalid annotation coordinate mode']);
     }
 
     $lineHeightPx = isset($ann['lineHeightPx']) && is_numeric($ann['lineHeightPx'])
         ? (float)$ann['lineHeightPx'] : max(1.0, $fontPx * 1.4);
     if (!is_finite($lineHeightPx) || $lineHeightPx < 8 || $lineHeightPx > 500) {
-        tp_respond_json(400, ['ok' => false, 'error' => 'Invalid reference line height']);
+        respondJson(400, ['ok' => false, 'error' => 'Invalid reference line height']);
     }
 
     $out = [
@@ -108,32 +108,32 @@ function validate_annotation(array $ann): array {
     if ($type === 'stroke') {
         $points = isset($ann['points']) && is_array($ann['points']) ? $ann['points'] : [];
         if (count($points) < 2 || count($points) > 1500) {
-            tp_respond_json(400, ['ok' => false, 'error' => 'Invalid stroke']);
+            respondJson(400, ['ok' => false, 'error' => 'Invalid stroke']);
         }
-        $out['points'] = array_map(fn($p) => validate_point($p, 'stroke point'), $points);
+        $out['points'] = array_map(fn($p) => validatePoint($p, 'stroke point'), $points);
         if (isset($ann['pressures']) && is_array($ann['pressures'])) {
             if (count($ann['pressures']) !== count($out['points'])) {
-                tp_respond_json(400, ['ok' => false, 'error' => 'Invalid stroke pressure data']);
+                respondJson(400, ['ok' => false, 'error' => 'Invalid stroke pressure data']);
             }
             $pressures = [];
             foreach ($ann['pressures'] as $pressure) {
-                if (!is_numeric($pressure)) tp_respond_json(400, ['ok' => false, 'error' => 'Invalid stroke pressure']);
+                if (!is_numeric($pressure)) respondJson(400, ['ok' => false, 'error' => 'Invalid stroke pressure']);
                 $pressure = (float)$pressure;
                 if (!is_finite($pressure) || $pressure < 0 || $pressure > 1) {
-                    tp_respond_json(400, ['ok' => false, 'error' => 'Invalid stroke pressure']);
+                    respondJson(400, ['ok' => false, 'error' => 'Invalid stroke pressure']);
                 }
                 $pressures[] = $pressure;
             }
             $out['pressures'] = $pressures;
         }
     } elseif ($type === 'arrow' || $type === 'ellipse') {
-        $out['from'] = validate_point($ann['from'] ?? null, 'start point');
-        $out['to'] = validate_point($ann['to'] ?? null, 'end point');
+        $out['from'] = validatePoint($ann['from'] ?? null, 'start point');
+        $out['to'] = validatePoint($ann['to'] ?? null, 'end point');
     } elseif ($type === 'text') {
-        $out['at'] = validate_point($ann['at'] ?? null, 'text point');
+        $out['at'] = validatePoint($ann['at'] ?? null, 'text point');
         $text = isset($ann['text']) && is_string($ann['text']) ? trim($ann['text']) : '';
         if ($text === '' || strlen($text) > 640) {
-            tp_respond_json(400, ['ok' => false, 'error' => 'Annotation text is required']);
+            respondJson(400, ['ok' => false, 'error' => 'Annotation text is required']);
         }
         $out['text'] = $text;
     }
@@ -147,40 +147,40 @@ $action = $_GET['action'] ?? 'get';
 if ($action === 'get') {
     $script = isset($_GET['script']) ? (string)$_GET['script'] : '';
     $dept = isset($_GET['dept']) ? strtoupper((string)$_GET['dept']) : '';
-    if (!tp_valid_id($script) || !isset($catalog[$script]) || !in_array($dept, TP_ALLOWED_DEPARTMENTS, true)) {
-        tp_respond_json(404, ['ok' => false, 'error' => 'Unknown script or department']);
+    if (!isValidId($script) || !isset($catalog[$script]) || !in_array($dept, TP_ALLOWED_DEPARTMENTS, true)) {
+        respondJson(404, ['ok' => false, 'error' => 'Unknown script or department']);
     }
-    $rawDoc = tp_read_json_locked(annotation_file($annotationDir, $script, $dept));
-    $doc = normalize_doc($rawDoc, $script, $dept);
-    tp_respond_json(200, ['ok' => true] + $doc);
+    $rawDoc = readJsonLocked(annotationFile($annotationDir, $script, $dept));
+    $doc = normalizeDoc($rawDoc, $script, $dept);
+    respondJson(200, ['ok' => true] + $doc);
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    tp_respond_json(405, ['ok' => false, 'error' => 'POST required']);
+    respondJson(405, ['ok' => false, 'error' => 'POST required']);
 }
 
-$data = tp_request_json();
+$data = getRequestJson();
 $dept = isset($data['department']) ? strtoupper((string)$data['department']) : '';
 if (!in_array($dept, TP_ALLOWED_DEPARTMENTS, true)) {
-    tp_respond_json(404, ['ok' => false, 'error' => 'Unknown department']);
+    respondJson(404, ['ok' => false, 'error' => 'Unknown department']);
 }
 if ($action === 'logout') {
-    tp_clear_auth_cookie('dept_' . strtolower($dept));
-    tp_respond_json(200, ['ok' => true, 'department' => $dept]);
+    clearAuthCookie('dept_' . strtolower($dept));
+    respondJson(200, ['ok' => true, 'department' => $dept]);
 }
-tp_require_department_editor($dept, $passwords);
+requireDepartmentEditor($dept, $passwords);
 
 $script = isset($data['script']) ? (string)$data['script'] : '';
-if (!tp_valid_id($script) || !isset($catalog[$script])) {
-    tp_respond_json(404, ['ok' => false, 'error' => 'Unknown script']);
+if (!isValidId($script) || !isset($catalog[$script])) {
+    respondJson(404, ['ok' => false, 'error' => 'Unknown script']);
 }
 
-$file = annotation_file($annotationDir, $script, $dept);
-$rawDoc = tp_read_json_locked($file);
-$doc = normalize_doc($rawDoc, $script, $dept);
+$file = annotationFile($annotationDir, $script, $dept);
+$rawDoc = readJsonLocked($file);
+$doc = normalizeDoc($rawDoc, $script, $dept);
 
 if ($action === 'save') {
-    $ann = validate_annotation(isset($data['annotation']) && is_array($data['annotation']) ? $data['annotation'] : []);
+    $ann = validateAnnotation(isset($data['annotation']) && is_array($data['annotation']) ? $data['annotation'] : []);
     if ($ann['id'] === '') $ann['id'] = strtolower($dept) . '-ann-' . bin2hex(random_bytes(8));
 
     $found = false;
@@ -195,24 +195,24 @@ if ($action === 'save') {
 } elseif ($action === 'delete') {
     $id = isset($data['id']) ? (string)$data['id'] : '';
     if (!preg_match('/^[A-Za-z0-9_-]{1,100}$/', $id)) {
-        tp_respond_json(400, ['ok' => false, 'error' => 'Invalid annotation id']);
+        respondJson(400, ['ok' => false, 'error' => 'Invalid annotation id']);
     }
     $doc['annotations'] = array_values(array_filter(
         $doc['annotations'],
         fn($a) => !is_array($a) || ($a['id'] ?? null) !== $id
     ));
 } else {
-    tp_respond_json(404, ['ok' => false, 'error' => 'Unknown action']);
+    respondJson(404, ['ok' => false, 'error' => 'Unknown action']);
 }
 
 $doc['revision']++;
-if (!tp_write_json_locked($file, $doc, true)) {
-    tp_respond_json(500, ['ok' => false, 'error' => 'Could not write annotation file']);
+if (!writeJsonLocked($file, $doc, true)) {
+    respondJson(500, ['ok' => false, 'error' => 'Could not write annotation file']);
 }
 
-tp_update_revision_signal($signalFile, $stateDir, $script, $dept, $doc['revision']);
+updateRevisionSignal($signalFile, $stateDir, $script, $dept, $doc['revision']);
 
-tp_respond_json(200, [
+respondJson(200, [
     'ok' => true,
     'revision' => $doc['revision'],
     'annotations' => $doc['annotations'],

@@ -54,7 +54,9 @@ The PHP endpoints are:
 | `cue_api.php` | Read and mutate department cue documents and publish revision signals. |
 | `annotation_api.php` | Read and mutate annotation documents and publish revision signals. |
 | `settings_api.php` | Read central department display settings and perform authenticated updates. |
-| `auth_cookie.php` | Issue and verify signed role cookies. |
+| `util/api_common.php` | Shared utility helpers (locking, JSON serialization, auth enforcement, revision signals). |
+| `util/auth_cookie.php` | Issue and verify signed role cookies. |
+| `testing/sse_test.php` | Diagnostic SSE test stream endpoint. |
 
 All current browser clients use synchronization room `main`.
 
