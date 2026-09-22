@@ -24,6 +24,7 @@ export default defineConfig({
         target: 'http://localhost:4805',
         changeOrigin: true,
       }
-    }
+    },
+    host: '0.0.0.0'
   }
 });

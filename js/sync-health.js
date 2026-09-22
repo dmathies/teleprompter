@@ -37,6 +37,12 @@ export function createSyncHealthMonitor({
                 : "health-idle";
             const inputLabel = playing ? "AUTO" : "INPUT";
 
+            const ptpInfo = ts.ptpClock && ts.ptpClock.synced ? {
+                offsetMs: Math.round(ts.ptpClock.offsetMs),
+                rttMs: Math.round(ts.ptpClock.rttMs),
+                synced: true
+            } : null;
+
             return {
                 mode: "master",
                 server: {
@@ -49,7 +55,8 @@ export function createSyncHealthMonitor({
                     ageMs: inputAge,
                     formattedAge: formatHealthAge(inputAge),
                     className: autoCls
-                }
+                },
+                ptp: ptpInfo
             };
         }
 
@@ -76,6 +83,12 @@ export function createSyncHealthMonitor({
             : "health-idle";
         const inputLabel = remotePlaying ? "AUTO" : "INPUT";
 
+        const ptpInfo = ts.ptpClock && ts.ptpClock.synced ? {
+            offsetMs: Math.round(ts.ptpClock.offsetMs),
+            rttMs: Math.round(ts.ptpClock.rttMs),
+            synced: true
+        } : null;
+
         return {
             mode: "follower",
             master: {
@@ -93,7 +106,8 @@ export function createSyncHealthMonitor({
                 ageMs: interactionAge,
                 formattedAge: formatHealthAge(interactionAge),
                 className: autoCls
-            }
+            },
+            ptp: ptpInfo
         };
     }
 

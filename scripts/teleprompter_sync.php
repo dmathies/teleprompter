@@ -98,10 +98,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $now = microtime(true);
+    if (($_GET['action'] ?? '') === 'time') {
+        $clientSend = isset($_GET['t1']) && is_numeric($_GET['t1']) ? (float)$_GET['t1'] : null;
+        respondJson(200, [
+            'ok' => true,
+            't1' => $clientSend,
+            'serverTime' => $now
+        ]);
+    }
+
     $state = readJsonLocked($file);
     // Return the current server clock alongside the stored state. Followers
     // use this to age serverTime/interactionAgeMs consistently after reloads.
-    respondJson(200, ['ok' => true, 'state' => $state, 'serverTime' => microtime(true)]);
+    $clientSend = isset($_GET['t1']) && is_numeric($_GET['t1']) ? (float)$_GET['t1'] : null;
+    respondJson(200, [
+        'ok' => true,
+        'state' => $state,
+        'serverTime' => $now,
+        't1' => $clientSend
+    ]);
 }
 
 respondJson(405, ['error' => 'Method not allowed']);

@@ -219,4 +219,15 @@ describe('Teleprompter Sync & Master Lease Concurrency', () => {
     assert.ok(typeof followData.state.serverTime === 'number', 'state.serverTime must be stamped by server');
     assert.ok(typeof followData.serverTime === 'number', 'response.serverTime must reflect server clock');
   });
+
+  test('GET /scripts/teleprompter_sync.php?action=time provides PTP clock synchronization', async (t) => {
+    if (!server || server.workers.length === 0) return t.skip('PHP server unavailable');
+    const t1 = Date.now() / 1000;
+    const timeRes = await fetch(`${server.baseUrl}/scripts/teleprompter_sync.php?action=time&t1=${t1}`);
+    assert.equal(timeRes.status, 200);
+    const data = await timeRes.json();
+    assert.equal(data.ok, true);
+    assert.ok(typeof data.serverTime === 'number');
+    assert.equal(data.t1, t1);
+  });
 });

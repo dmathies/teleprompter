@@ -8,12 +8,14 @@ export class FollowerInterpolator {
         followBufferMs = 1250,
         followAverageWindowMs = 3000,
         followMaxWaitMs = 3000,
-        followWaitEpsilonPx = 2
+        followWaitEpsilonPx = 2,
+        ptpClock = null
     } = {}) {
         this.followBufferMs = followBufferMs;
         this.followAverageWindowMs = followAverageWindowMs;
         this.followMaxWaitMs = followMaxWaitMs;
         this.followWaitEpsilonPx = followWaitEpsilonPx;
+        this.ptpClock = ptpClock;
 
         this.samples = [];
         this.clockServerMs = null;
@@ -27,7 +29,6 @@ export class FollowerInterpolator {
         this.samples = [];
         this.clockServerMs = null;
         this.clockPerfMs = null;
-        this.lastRenderedPosition = null;
         this.waitingSince = null;
         this.direction = 0;
     }
@@ -67,13 +68,16 @@ export class FollowerInterpolator {
     computeDesiredPosition(maxScrollTop, nowPerf = performance.now()) {
         if (!this.hasSamples()) return null;
 
-        const estimatedServerNow = this.clockServerMs + (nowPerf - this.clockPerfMs);
+        const estimatedServerNow = (this.ptpClock && this.ptpClock.synced)
+            ? this.ptpClock.toServerTimeMs(nowPerf)
+            : this.clockServerMs + (nowPerf - this.clockPerfMs);
+
         const renderServerMs = estimatedServerNow - this.followBufferMs;
 
         let desired = this.samples[0].target;
         const latestSample = this.samples[this.samples.length - 1];
 
-        if (latestSample.playing && this.samples.length >= 3) {
+        if (latestSample.playing && this.samples.length >= 2) {
             const windowStart = renderServerMs - this.followAverageWindowMs / 2;
             const windowEnd = renderServerMs + this.followAverageWindowMs / 2;
 
@@ -81,61 +85,71 @@ export class FollowerInterpolator {
                 s => s.serverMs >= windowStart && s.serverMs <= windowEnd
             );
 
-            if (samples.length < 3) {
+            if (samples.length < 2) {
                 const newest = this.samples[this.samples.length - 1].serverMs;
                 samples = this.samples.filter(
                     s => s.serverMs >= newest - this.followAverageWindowMs
                 );
             }
 
-            if (samples.length >= 2) {
-                let meanT = 0;
-                let meanY = 0;
+            let meanT = 0;
+            let meanY = 0;
 
-                for (const s of samples) {
-                    meanT += s.serverMs;
-                    meanY += s.target;
-                }
+            for (const s of samples) {
+                meanT += s.serverMs;
+                meanY += s.target;
+            }
 
-                meanT /= samples.length;
-                meanY /= samples.length;
+            meanT /= samples.length;
+            meanY /= samples.length;
 
-                let covariance = 0;
-                let variance = 0;
+            let covariance = 0;
+            let variance = 0;
 
-                for (const s of samples) {
-                    const dt = (s.serverMs - meanT) / 1000;
-                    const dy = s.target - meanY;
-                    covariance += dt * dy;
-                    variance += dt * dt;
-                }
+            for (const s of samples) {
+                const dt = (s.serverMs - meanT) / 1000;
+                const dy = s.target - meanY;
+                covariance += dt * dy;
+                variance += dt * dt;
+            }
 
-                let velocity = variance > 0.000001 ? covariance / variance : 0;
-                if (Math.abs(velocity) < 0.15) velocity = 0;
+            let regressionVelocity = variance > 0.000001 ? covariance / variance : 0;
+            if (Math.abs(regressionVelocity) < 0.15) regressionVelocity = 0;
 
-                // When playing forward, regression velocity shouldn't be negative (and vice versa)
-                if (this.direction > 0 && velocity < 0) {
-                    velocity = 0;
-                } else if (this.direction < 0 && velocity > 0) {
-                    velocity = 0;
-                }
+            // Direct authoritative master velocity (if sent by master)
+            const masterVelocity = Number.isFinite(latestSample.velocity) ? latestSample.velocity : null;
 
-                const renderDt = (renderServerMs - meanT) / 1000;
+            // Fuse master authoritative velocity with empirical regression velocity
+            let velocity = regressionVelocity;
+            if (masterVelocity !== null) {
+                // If regression has high variance or few samples, weight master velocity higher
+                velocity = samples.length >= 4
+                    ? (masterVelocity * 0.4 + regressionVelocity * 0.6)
+                    : masterVelocity;
+            }
 
-                // 2nd-order smooth prediction using acceleration if available
-                const accel = Number.isFinite(latestSample.acceleration) ? latestSample.acceleration : 0;
-                if (accel !== 0 && Math.abs(renderDt) <= 2.0) {
-                    // s(t) = meanY + v * dt + 0.5 * a * dt^2
-                    desired = meanY + velocity * renderDt + 0.5 * accel * (renderDt * renderDt);
-                } else {
-                    desired = meanY + velocity * renderDt;
-                }
+            // Directional clamping: when playing forward, velocity cannot be negative
+            if (this.direction > 0 && velocity < 0) {
+                velocity = 0;
+            } else if (this.direction < 0 && velocity > 0) {
+                velocity = 0;
+            }
 
-                // Prevent overshooting backwards past the minimum sample when moving forward
-                if (this.direction > 0) {
-                    const minRecentTarget = Math.min(...samples.map(s => s.target));
-                    desired = Math.max(minRecentTarget, desired);
-                }
+            const renderDt = (renderServerMs - meanT) / 1000;
+
+            // 2nd-order Taylor expansion motion prediction:
+            // s(t) = s_0 + v * dt + 0.5 * a * dt^2
+            const accel = Number.isFinite(latestSample.acceleration) ? latestSample.acceleration : 0;
+            if (accel !== 0 && Math.abs(renderDt) <= 2.0) {
+                desired = meanY + velocity * renderDt + 0.5 * accel * (renderDt * renderDt);
+            } else {
+                desired = meanY + velocity * renderDt;
+            }
+
+            // Prevent overshooting backwards past the minimum recent target when moving forward
+            if (this.direction > 0) {
+                const minRecentTarget = Math.min(...samples.map(s => s.target));
+                desired = Math.max(minRecentTarget, desired);
             }
         } else {
             if (renderServerMs <= this.samples[0].serverMs) {
@@ -154,7 +168,7 @@ export class FollowerInterpolator {
                     }
                 }
                 if (!foundPair) {
-                    desired = this.samples[this.samples.length - 1].target;
+                    desired = this.samples.at(-1).target;
                 }
             }
         }
@@ -162,14 +176,18 @@ export class FollowerInterpolator {
         // Clamp to valid document bounds
         desired = Math.max(0, Math.min(maxScrollTop, desired));
 
-        // When moving forward, prevent false jump to top if we were already scrolled down
-        if (this.lastRenderedPosition !== null && this.lastRenderedPosition > 150 && desired < 30) {
-            // Check if latest sample actually confirmed top jump
-            if (latestSample.target > 150) {
+        // Jitter & Top-Jump Protection:
+        // 1. If currently scrolled down (>100px) and a sudden computation predicts jumping to near-top (<50px)
+        // or a massive backward jump during forward playback, hold position if master latest target is not near top.
+        if (this.lastRenderedPosition !== null && this.lastRenderedPosition > 100) {
+            if (desired < 50 && latestSample.target >= 50) {
+                desired = this.lastRenderedPosition;
+            } else if (this.direction > 0 && latestSample.playing && desired < this.lastRenderedPosition - 150 && latestSample.target >= this.lastRenderedPosition - 50) {
                 desired = this.lastRenderedPosition;
             }
         }
 
+        // 2. Suppress micro-jitter when stationary or playing steadily
         if (latestSample.playing && this.lastRenderedPosition !== null && this.direction !== 0) {
             const oppositeBy = this.direction > 0
                 ? this.lastRenderedPosition - desired
@@ -198,6 +216,12 @@ export class FollowerInterpolator {
             }
         } else {
             this.waitingSince = null;
+        }
+
+        // 3. Smooth low-pass easing between frames: blend 80% new desired, 20% previous rendered
+        // to prevent micro-stutters when frame rates fluctuate or network packets arrive asynchronously.
+        if (this.lastRenderedPosition !== null && latestSample.playing && Math.abs(desired - this.lastRenderedPosition) < 60) {
+            desired = this.lastRenderedPosition * 0.25 + desired * 0.75;
         }
 
         this.lastRenderedPosition = desired;

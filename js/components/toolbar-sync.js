@@ -278,12 +278,17 @@ export class ToolbarSync extends BaseControllerElement {
 
   _renderHealthStatus() {
     if (this.healthChecks && typeof this.healthChecks === 'object') {
-      const { mode, server, master, net, input } = this.healthChecks;
+      const { mode, server, master, net, input, ptp } = this.healthChecks;
+      const ptpBadge = ptp && ptp.synced
+        ? html`<span class="health-ok" title="PTP Synced: RTT ${ptp.rttMs}ms, offset ${ptp.offsetMs}ms">PTP ±${Math.abs(ptp.offsetMs)}ms</span>`
+        : '';
+
       if (mode === 'master') {
         return html`
           ${server ? html`<span class="${server.className || ''}">SERVER ● ${server.formattedAge || formatHealthAge(server.ageMs)}</span>` : ''}
           ${server && input ? ' · ' : ''}
           ${input ? html`<span class="${input.className || ''}">${input.label} ${input.formattedAge || formatHealthAge(input.ageMs)}</span>` : ''}
+          ${ptpBadge ? html` · ${ptpBadge}` : ''}
         `;
       } else if (mode === 'follower') {
         return html`
@@ -292,6 +297,7 @@ export class ToolbarSync extends BaseControllerElement {
           ${net ? html`<span class="${net.className || ''}">NET ● ${net.formattedAge || formatHealthAge(net.ageMs)}</span>` : ''}
           ${(master || net) && input ? ' · ' : ''}
           ${input ? html`<span class="${input.className || ''}">${input.label} ${input.formattedAge || formatHealthAge(input.ageMs)}</span>` : ''}
+          ${ptpBadge ? html` · ${ptpBadge}` : ''}
         `;
       }
     }

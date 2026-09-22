@@ -1,6 +1,7 @@
 import {motionSignature as syncMotionSignature, stateAgeAtDeliveryMs} from "./sync-protocol.js";
 import {createSyncHealthMonitor} from "./sync-health.js";
 import {FollowerInterpolator} from "./sync-follower-interpolator.js";
+import {PtpClock} from "./sync-ptp-clock.js";
 
 export function createSyncEngine({
     viewport,
@@ -96,19 +97,6 @@ export function createSyncEngine({
     let lastRemoteMotionAt = performance.now();
     let followingLive = true;
     let followTargetScrollTop = null;
-    const interpolator = new FollowerInterpolator({
-        followBufferMs,
-        followAverageWindowMs,
-        followMaxWaitMs,
-        followWaitEpsilonPx
-    });
-    let lastRemotePlaying = null;
-    let syncAnimationRunning = false;
-    let pendingTopJump = null;
-    const FOLLOW_TOP_GUARD_FRACTION = 0.025;
-    const FOLLOW_TOP_GUARD_FROM_FRACTION = 0.15;
-    const FOLLOW_TOP_GUARD_CONFIRM_MS = 1800;
-
     function syncUrl() {
         return syncEndpoint + "?room=" + encodeURIComponent(syncRoom);
     }
@@ -116,6 +104,25 @@ export function createSyncEngine({
     function sseUrl() {
         return sseEndpoint + "?room=" + encodeURIComponent(syncRoom);
     }
+
+    const ptpClock = new PtpClock({
+        syncUrl: () => syncUrl()
+    });
+
+    const interpolator = new FollowerInterpolator({
+        followBufferMs,
+        followAverageWindowMs,
+        followMaxWaitMs,
+        followWaitEpsilonPx,
+        ptpClock
+    });
+    let lastRemotePlaying = null;
+    let syncAnimationRunning = false;
+    let pendingTopJump = null;
+    let lastAcceptedSequence = null;
+    const FOLLOW_TOP_GUARD_FRACTION = 0.025;
+    const FOLLOW_TOP_GUARD_FROM_FRACTION = 0.15;
+    const FOLLOW_TOP_GUARD_CONFIRM_MS = 1800;
 
     const healthMonitor = createSyncHealthMonitor({
         masterIdleBorder,
@@ -138,12 +145,18 @@ export function createSyncEngine({
             lastMasterInteractionBaseMs,
             lastMasterInteractionSamplePerf,
             lastServerHeartbeatPerf,
-            latestRemoteState
+            latestRemoteState,
+            ptpClock
         }),
         onHealthChecksUpdate: (checks) => {
             if (toolbarSync) toolbarSync.healthChecks = checks;
         }
     });
+
+    ptpClock.onSync(() => {
+        updateMasterHealthStatus();
+    });
+    ptpClock.start();
 
     function recordMasterInteraction() {
         if (syncMode !== "master") return;
@@ -195,6 +208,9 @@ export function createSyncEngine({
         latestRemoteState = state;
         latestRemoteStateAgeAtReceiveMs = ageAtReceiveMs;
         latestRemoteStateReceivedPerf = receivedAt;
+        if (state && Number.isFinite(Number(state.sequence))) {
+            lastAcceptedSequence = Number(state.sequence);
+        }
         remoteStateExpiryTimer = setTimeout(() => {
             remoteStateExpiryTimer = null;
             if (syncMode !== "follow" || latestRemoteState !== state) return;
@@ -216,6 +232,7 @@ export function createSyncEngine({
         latestRemoteStateAgeAtReceiveMs = null;
         latestRemoteStateReceivedPerf = null;
         pendingTopJump = null;
+        lastAcceptedSequence = null;
         updateMasterPositionMarker();
     }
 
@@ -283,6 +300,7 @@ export function createSyncEngine({
             fraction: pos.fraction,
             playing,
             speed: speedMultiplier,
+            velocity: Number(currentSpeedPxPerSec.toFixed(2)),
             acceleration: Number(accelerationPxPerSec2.toFixed(2)),
             interactionAgeMs: Math.max(0, performance.now() - lastMasterInteractionPerf),
             updatedByClient: now
@@ -317,7 +335,10 @@ export function createSyncEngine({
                 signal: masterAbortController.signal
             });
 
-            await response.text();
+            const t4 = (performance.timeOrigin ? performance.timeOrigin + performance.now() : Date.now());
+            const text = await response.text();
+            let body = null;
+            try { body = JSON.parse(text); } catch (_) {}
 
             if (response.status === 409) {
                 showMasterConflict("MASTER CONTROL LOST — another device has taken control");
@@ -333,6 +354,10 @@ export function createSyncEngine({
 
             if (!response.ok) {
                 throw new Error("HTTP " + response.status);
+            }
+
+            if (body && Number.isFinite(Number(body.serverTime))) {
+                ptpClock.recordSample(now, Number(body.serverTime), t4);
             }
 
             lastMasterStateSignature = signature;
@@ -406,6 +431,7 @@ export function createSyncEngine({
             return;
         }
 
+        const incomingSequence = Number(incomingState.sequence);
         const currentScriptId = getCurrentScriptId();
         if (incomingState.script && incomingState.script !== currentScriptId) {
             const available = getAvailableScripts();
@@ -415,6 +441,13 @@ export function createSyncEngine({
             }
             await loadShowScript(incomingState.script);
             pendingTopJump = null;
+            lastAcceptedSequence = null;
+        } else if (Number.isFinite(incomingSequence) && lastAcceptedSequence !== null) {
+            // Discard out-of-sequence packets (e.g. delayed poll responses arriving after SSE or newer poll)
+            // to prevent backwards regressions and sudden top-jumps during rapid scrolling.
+            if (incomingSequence < lastAcceptedSequence && (lastAcceptedSequence - incomingSequence) < 10000) {
+                return;
+            }
         }
 
         const target = targetScrollForState(incomingState);
@@ -467,6 +500,7 @@ export function createSyncEngine({
             }
 
             const sequence = Number(latestRemoteState.sequence) || 0;
+            const velocity = Number.isFinite(Number(latestRemoteState.velocity)) ? Number(latestRemoteState.velocity) : null;
             const acceleration = Number(latestRemoteState.acceleration) || 0;
 
             const previousSample = interpolator.getLastSample();
@@ -488,6 +522,7 @@ export function createSyncEngine({
                     serverMs: sampleServerMs,
                     target: clampedTarget,
                     playing: remotePlaying,
+                    velocity,
                     acceleration,
                     sequence
                 }, sampleServerMs, receivePerf);
@@ -513,17 +548,22 @@ export function createSyncEngine({
 
     async function pollMasterState() {
         if (syncMode !== "follow" || followTransport !== "poll") return;
+        const t1 = (performance.timeOrigin ? performance.timeOrigin + performance.now() : Date.now());
         try {
-            const response = await fetch(syncUrl() + "&_=" + Date.now(), {
+            const response = await fetch(syncUrl() + "&t1=" + t1 + "&_=" + Date.now(), {
                 method: "GET",
                 cache: "no-store"
             });
             if (!response.ok) throw new Error("HTTP " + response.status);
 
+            const t4 = (performance.timeOrigin ? performance.timeOrigin + performance.now() : Date.now());
             const body = await response.json();
             const state = body && body.state ? body.state : null;
-            if (state && Number.isFinite(Number(body.serverTime))) {
-                state.deliveryServerTime = Number(body.serverTime);
+            if (body && Number.isFinite(Number(body.serverTime))) {
+                ptpClock.recordSample(t1, Number(body.serverTime), t4);
+                if (state) {
+                    state.deliveryServerTime = Number(body.serverTime);
+                }
             }
             await handleRemoteState(state, "POLL");
         } catch (err) {
@@ -656,9 +696,21 @@ export function createSyncEngine({
             handleDepartmentSettingsEvent(event);
         });
 
-        events.addEventListener('server-heartbeat', () => {
+        events.addEventListener('server-heartbeat', (event) => {
             if (events !== followEventSource) return;
-            lastServerHeartbeatPerf = performance.now();
+            const nowPerf = performance.now();
+            lastServerHeartbeatPerf = nowPerf;
+            if (event && event.data) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data && Number.isFinite(Number(data.serverTime))) {
+                        const localEpoch = (performance.timeOrigin ? performance.timeOrigin + nowPerf : Date.now());
+                        // Heartbeat is one-way passive broadcast; record with estimated half-RTT
+                        const assumedRtt = ptpClock.synced ? Math.max(10, ptpClock.rttMs) : 50;
+                        ptpClock.recordSample(localEpoch - assumedRtt, Number(data.serverTime), localEpoch);
+                    }
+                } catch (_) {}
+            }
             updateMasterHealthStatus();
         });
 
@@ -988,8 +1040,10 @@ export function createSyncEngine({
         getMasterKey: () => masterKey,
         setMasterKey: (val) => { masterKey = val || ""; },
         isMasterControlConflict: () => masterControlConflict,
+        getPtpClock: () => ptpClock,
         destroy: () => {
             healthMonitor.destroy();
+            ptpClock.stop();
             clearInterval(borderInterval);
             stopSyncTimers();
             stopFollowerTransport();

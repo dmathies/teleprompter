@@ -70,4 +70,72 @@ describe('FollowerInterpolator', () => {
     // Must not be clamped to 0
     assert.ok(clamped >= 400, `Expected position to stay near 450, got ${clamped}`);
   });
+
+  test('fuses position, velocity, and acceleration in motion prediction', () => {
+    const interpolator = new FollowerInterpolator({
+      followBufferMs: 250,
+      followAverageWindowMs: 2000
+    });
+
+    interpolator.setDirection(1);
+
+    const baseT = 50000;
+    // Master is moving at 40 px/s with 5 px/s^2 acceleration
+    interpolator.addSample({
+      serverMs: baseT,
+      target: 1000,
+      playing: true,
+      velocity: 40,
+      acceleration: 5
+    }, baseT, 1000);
+
+    interpolator.addSample({
+      serverMs: baseT + 250,
+      target: 1010,
+      playing: true,
+      velocity: 40,
+      acceleration: 5
+    }, baseT + 250, 1250);
+
+    const pos = interpolator.computeDesiredPosition(5000, 1250);
+    assert.ok(Number.isFinite(pos));
+    assert.ok(pos >= 1000, `Position ${pos} should be forward of base sample 1000`);
+  });
+
+  test('preserves lastRenderedPosition across interpolator reset to prevent top snapping', () => {
+    const interpolator = new FollowerInterpolator();
+    interpolator.setDirection(1);
+
+    const t = 60000;
+    interpolator.addSample({ serverMs: t, target: 800, playing: true }, t, 1000);
+    interpolator.computeDesiredPosition(2000, 1000);
+    assert.equal(interpolator.lastRenderedPosition, 800);
+
+    // Direction flip or sample wipe triggers reset()
+    interpolator.reset();
+    assert.equal(interpolator.hasSamples(), false);
+    // lastRenderedPosition must still be preserved
+    assert.equal(interpolator.lastRenderedPosition, 800);
+
+    // After adding fresh sample at new direction/speed, must not jump to 0
+    interpolator.addSample({ serverMs: t + 100, target: 810, playing: true }, t + 100, 1100);
+    const pos = interpolator.computeDesiredPosition(2000, 1100);
+    assert.ok(pos >= 750, `Position ${pos} must not collapse towards top`);
+  });
+
+  test('suppresses massive backward jump during forward playback if master target is forward', () => {
+    const interpolator = new FollowerInterpolator();
+    interpolator.setDirection(1);
+
+    const t = 70000;
+    interpolator.addSample({ serverMs: t, target: 1200, playing: true }, t, 1000);
+    interpolator.computeDesiredPosition(3000, 1000);
+    interpolator.lastRenderedPosition = 1200;
+
+    // Master sent a target that is forward (1250), but an erroneous intermediate extrapolation or regression dip occurs
+    interpolator.addSample({ serverMs: t + 200, target: 1250, playing: true }, t + 200, 1200);
+
+    const pos = interpolator.computeDesiredPosition(3000, 1200);
+    assert.ok(pos >= 1150, `Expected position to stay forward near 1200+, got ${pos}`);
+  });
 });
