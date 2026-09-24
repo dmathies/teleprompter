@@ -3,16 +3,12 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import './toolbar-display.scss';
 import {
   IconExpand,
-  IconSun,
-  IconMoon,
   IconGear,
   IconFilePdf,
 } from '../icons.js';
 
 export class ToolbarDisplay extends LitElement {
   static properties = {
-    wakeLockActive: { type: Boolean },
-    wakeLockSupported: { type: Boolean },
     showStageDirections: { type: Boolean },
   };
 
@@ -22,17 +18,11 @@ export class ToolbarDisplay extends LitElement {
 
   constructor() {
     super();
-    this.wakeLockActive = false;
-    this.wakeLockSupported = true;
     this.showStageDirections = true;
   }
 
   _onFullscreen() {
     this.dispatchEvent(new CustomEvent('toggle-fullscreen', { bubbles: true, composed: true }));
-  }
-
-  _onWakeLock() {
-    this.dispatchEvent(new CustomEvent('toggle-wakelock', { bubbles: true, composed: true }));
   }
 
   _onStageDirections() {
@@ -47,15 +37,6 @@ export class ToolbarDisplay extends LitElement {
     this.dispatchEvent(new CustomEvent('open-export', { bubbles: true, composed: true }));
   }
 
-  _wakeLockTitle() {
-    if (!this.wakeLockSupported) {
-      return 'Screen wake lock is not supported by this browser';
-    }
-    return this.wakeLockActive
-      ? 'Screen will stay awake (click to disable)'
-      : 'Keep screen awake';
-  }
-
   render() {
     return html`
       <button
@@ -66,16 +47,6 @@ export class ToolbarDisplay extends LitElement {
         @click=${this._onFullscreen}
       >
         ${unsafeHTML(IconExpand)}
-      </button>
-      <button
-        id="wakeLockBtn"
-        class="icon-btn ${this.wakeLockActive ? 'master-active' : ''}"
-        title="${this._wakeLockTitle()}"
-        aria-label="Keep screen awake"
-        ?disabled=${!this.wakeLockSupported}
-        @click=${this._onWakeLock}
-      >
-        ${unsafeHTML(this.wakeLockActive ? IconSun : IconMoon)}
       </button>
       <button
         id="stageDirectionsBtn"

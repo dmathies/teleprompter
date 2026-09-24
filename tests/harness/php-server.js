@@ -90,13 +90,18 @@ export class PhpTestServer {
         const target = getWorker();
         target.activeRequests++;
 
+        const reqHeaders = { ...req.headers };
+        if (!reqHeaders['x-show-key'] && !reqHeaders['cookie']) {
+          reqHeaders['x-show-key'] = 'CHANGE-ME-SHOW';
+        }
+
         const proxyReq = http.request({
           hostname: '127.0.0.1',
           port: target.port,
           path: req.url,
           method: req.method,
           headers: {
-            ...req.headers,
+            ...reqHeaders,
             host: req.headers.host || `${this.host}:${this.port}`,
           },
         }, (proxyRes) => {
@@ -136,7 +141,7 @@ export class PhpTestServer {
         while (Date.now() - start < 5000) {
           try {
             const res = await fetch(`http://127.0.0.1:${w.port}/scripts/list_scripts.php`);
-            if (res.status === 200) {
+            if (res.status === 200 || res.status === 401) {
               ready = true;
               break;
             }
@@ -153,7 +158,7 @@ export class PhpTestServer {
       while (Date.now() - start < 5000) {
         try {
           const res = await fetch(`${this.baseUrl}/scripts/list_scripts.php`);
-          if (res.status === 200) break;
+          if (res.status === 200 || res.status === 401) break;
         } catch (_) {
           await new Promise((r) => setTimeout(r, 100));
         }

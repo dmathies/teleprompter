@@ -10,10 +10,22 @@ state and event handling are coordinated in `js/main.js`, and central settings a
 served by `scripts/settings_api.php`. Export consumes the same central settings
 through `js/pdf-export.js`.
 
+The settings dialog provides controls for:
+- Font size slider (16px to 180px)
+- Screen wake lock toggle ("Keep screen awake")
+- Overview rail side (left or right)
+- Central department annotation margin (side and width, when authenticated as department editor)
+
 ## Storage and scope
 
-The overview rail side is browser-local. It uses the `localStorage` key
-`gaosTeleprompterRailSide`, whose value is `left` or `right`.
+Font size, overview rail side, stage direction visibility, and the last selected
+department are browser-local preferences stored in `localStorage`:
+- `gaosTeleprompterRailSide`: Overview rail side (`left` or `right`).
+- `gaosTeleprompterFontSize`: Font size in pixels (clamped between 16 and 180).
+- `gaosTeleprompterStageDirections`: Stage direction visibility (`true` or `false`).
+- `gaosTeleprompterDepartment`: Last selected department code (e.g. `FS`, `LX`). If no explicit `?dept=` query parameter is supplied in the URL, this saved selection is automatically restored. Explicit URL parameters override this and update the saved preference.
+Font size applies directly to `#content` styling and preserves the semantic script position
+during adjustments and layout reflow. Keep-screen-on state uses the Screen Wake Lock API.
 
 Annotation margins are central operational settings stored in the ignored
 `scripts/teleprompter_state/department_settings.json` file. The document has a

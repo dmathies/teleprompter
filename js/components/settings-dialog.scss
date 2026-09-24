@@ -77,9 +77,34 @@
   }
 }
 
+.settings-input-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  input[type="range"] {
+    flex: 1;
+  }
+}
+
+.settings-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#fontSizeValue,
 #annotationMarginWidthValue {
   color: $color-text-muted;
   font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  min-width: 48px;
+  text-align: right;
+}
+
+.settings-text-muted {
+  color: $color-text-muted;
+  font-size: 14px;
 }
 
 #settingsSaveStatus {

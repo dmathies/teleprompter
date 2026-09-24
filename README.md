@@ -15,7 +15,7 @@ the ES modules in `js/` implement the application:
   - `toolbar-transport.js`: playback, speed adjustments, and jumps;
   - `toolbar-display.js`: fullscreen, wake lock, stage directions toggle, settings, and PDF export;
   - `toolbar-navigation.js`: script, scene, and song navigation dropdowns;
-  - `toolbar-sync.js`: script selection, ASM/department mode, credentials, rejoin, and health indicators;
+  - `toolbar-sync.js`: script selection, PRM/department mode, credentials, rejoin, and health indicators;
   - `toolbar-sliders.js`: speed and font-size sliders;
   - `annotation-toolbar.js`: drawing tools, stroke widths, colors, undo, and clear;
   - `settings-dialog.js`: overview rail side and central department margin settings;

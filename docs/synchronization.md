@@ -1,7 +1,7 @@
 # Master/follower synchronization
 
 Synchronization control flow and transport handling are coordinated in
-`js/main.js`. Live synchronization controls, ASM/department mode toggles,
+`js/main.js`. Live synchronization controls, PRM/department mode toggles,
 rejoin actions, and connection health badges are encapsulated in the
 `<toolbar-sync>` Web Component (`js/components/toolbar-sync.js`). Playback and
 speed controls are in `<toolbar-transport>` and `<toolbar-sliders>`.

@@ -2,7 +2,11 @@
 // teleprompter_sync.php
 require_once __DIR__ . '/util/api_common.php';
 
-$MASTER_PASSWORD = loadPasswords()['master'];
+$allPasswords = loadPasswords();
+$showPassword = $allPasswords['show'] ?? '';
+requireShowAccess($showPassword);
+
+$MASTER_PASSWORD = $allPasswords['master'] ?? '';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');

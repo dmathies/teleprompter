@@ -6,7 +6,6 @@ export class ToolbarSliders extends BaseControllerElement {
   static properties = {
     ...BaseControllerElement.properties,
     speed: { type: Number },
-    fontSize: { type: Number },
     statusText: { type: String },
     isPlaying: { type: Boolean },
     disabled: { type: Boolean },
@@ -20,7 +19,6 @@ export class ToolbarSliders extends BaseControllerElement {
   constructor() {
     super();
     this.speed = 2.0;
-    this.fontSize = 42;
     this.statusText = '';
     this.isPlaying = false;
     this.disabled = false;
@@ -42,26 +40,6 @@ export class ToolbarSliders extends BaseControllerElement {
     this.speed = speed;
     this.dispatchEvent(new CustomEvent('speed-change', {
       detail: { speed },
-      bubbles: true,
-      composed: true,
-    }));
-  }
-
-  _onFontSizeInput(e) {
-    const fontSize = parseInt(e.target.value, 10);
-    this.fontSize = fontSize;
-    this.dispatchEvent(new CustomEvent('font-size-input', {
-      detail: { fontSize },
-      bubbles: true,
-      composed: true,
-    }));
-  }
-
-  _onFontSizeChange(e) {
-    const fontSize = parseInt(e.target.value, 10);
-    this.fontSize = fontSize;
-    this.dispatchEvent(new CustomEvent('font-size-change', {
-      detail: { fontSize },
       bubbles: true,
       composed: true,
     }));
@@ -95,18 +73,6 @@ export class ToolbarSliders extends BaseControllerElement {
           @change=${this._onSpeedChange}
         >
       </span>
-
-      <label for="fontSizeInput">Font</label>
-      <input
-        id="fontSizeInput"
-        type="range"
-        min="16"
-        max="180"
-        step="1"
-        .value=${String(this.fontSize)}
-        @input=${this._onFontSizeInput}
-        @change=${this._onFontSizeChange}
-      >
 
       <div id="status" ?hidden=${this.hideStatus}>${displayStatus}</div>
     `;

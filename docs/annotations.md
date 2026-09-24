@@ -69,7 +69,7 @@ changing the margin shifts existing annotations with the text. See
 
 Department authentication uses the corresponding entry in the `departments`
 map in the ignored `scripts/passwords.php`. It shares configuration storage
-with the ASM credential but remains a separate authorization role.
+with the PRM credential but remains a separate authorization role.
 
 Erasing samples a 10-pixel-wide path and deletes every annotation shape it
 touches. The translucent canvas trail is only visual feedback and disappears

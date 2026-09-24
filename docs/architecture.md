@@ -16,6 +16,8 @@ For deployment, `npm run build` compiles and bundles the client into `dist/`.
 | Client file | Responsibility |
 | --- | --- |
 | `../teleprompter_v2.html` | DOM shell hosting the toolbar custom elements, dialogs, overview rail, annotation tools, and script viewport. It loads the stylesheet and module entry point but contains no application logic. |
+| `../login.php` | Show authentication page granting a 60-day device cookie before accessing teleprompter pages or endpoints. |
+| `../gatekeeper.php` | Web server access gatekeeper validating show cookies before serving protected HTML, scripts, or endpoints. |
 | `../index.html` | Root entry page redirecting visitors to `https://gaos.ch/`. |
 | `css/teleprompter.scss` | Top-level SCSS styles for layout and visual states, including responsive rules, cue and annotation styles, overview rail, and follow/master styling. Imports `css/_variables.scss`. |
 | `js/components/` | Modular Lit Web Components for toolbars and modal dialogs (`toolbar-transport.js`, `toolbar-display.js`, `toolbar-navigation.js`, `toolbar-sync.js`, `toolbar-sliders.js`, `annotation-toolbar.js`, `settings-dialog.js`, `export-dialog.js`, `cue-editor-dialog.js`), rendered into Light DOM with paired `.scss` styles. |
@@ -28,6 +30,7 @@ For deployment, `npm run build` compiles and bundles the client into `dist/`.
 | `js/annotation-geometry.js` | Live annotation coordinate conversion, SVG shape construction, scaling, and layer cleanup. |
 | `js/annotation-store.js` | IndexedDB access for cached annotation documents and queued offline operations. |
 | `js/pdf-export.js` | Browser-generated print/PDF view, including export data loading, markup decoration, pagination, and print annotation rendering. |
+| `js/departments.js` | Dynamic department helper querying the backend as source of truth for allowed departments and metadata. |
 | `js/utils.js` | Shared pure colour and health-display helpers used by the browser modules. |
 | `../vite.config.js` | Vite configuration defining the raw icon compiler and Rollup input entries (`index.html`, `teleprompter_v2.html`, `pen_pointer_diagnostics.html`, and `sse_test.html`). |
 
@@ -79,7 +82,7 @@ All current browser clients use synchronization room `main`.
 
 ## Client roles
 
-The default client is a follower. ASM can authenticate and claim master
+The default client is a follower. PRM can authenticate and claim master
 control. A URL query such as `?dept=LX` creates a department follower; its
 department password unlocks cue and annotation editing but never master control.
 

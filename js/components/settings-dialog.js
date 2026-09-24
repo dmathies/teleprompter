@@ -1,9 +1,17 @@
 import { LitElement, html } from 'lit';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import './settings-dialog.scss';
+import {
+  IconSun,
+  IconMoon,
+} from '../icons.js';
 
 export class SettingsDialog extends LitElement {
   static properties = {
     open: { type: Boolean },
+    fontSize: { type: Number },
+    wakeLockActive: { type: Boolean },
+    wakeLockSupported: { type: Boolean },
     railSide: { type: String },
     annotationMarginSide: { type: String },
     annotationMarginWidth: { type: Number },
@@ -21,6 +29,9 @@ export class SettingsDialog extends LitElement {
   constructor() {
     super();
     this.open = false;
+    this.fontSize = 42;
+    this.wakeLockActive = false;
+    this.wakeLockSupported = true;
     this.railSide = 'right';
     this.annotationMarginSide = 'none';
     this.annotationMarginWidth = 0;
@@ -57,12 +68,53 @@ export class SettingsDialog extends LitElement {
   }
 
   focus() {
-    const select = this.querySelector('#railSideSelect');
-    if (select) select.focus();
+    const input = this.querySelector('#fontSizeInput');
+    if (input) {
+      input.focus();
+    } else {
+      const select = this.querySelector('#railSideSelect');
+      if (select) select.focus();
+    }
   }
 
   _onPointerDown(e) {
     e.stopPropagation();
+  }
+
+  _onFontSizeInput(e) {
+    const fontSize = parseInt(e.target.value, 10);
+    this.fontSize = fontSize;
+    this.dispatchEvent(new CustomEvent('font-size-input', {
+      detail: { fontSize },
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
+  _onFontSizeChange(e) {
+    const fontSize = parseInt(e.target.value, 10);
+    this.fontSize = fontSize;
+    this.dispatchEvent(new CustomEvent('font-size-change', {
+      detail: { fontSize },
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
+  _onWakeLock() {
+    this.dispatchEvent(new CustomEvent('toggle-wakelock', {
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
+  _wakeLockTitle() {
+    if (!this.wakeLockSupported) {
+      return 'Screen wake lock is not supported by this browser';
+    }
+    return this.wakeLockActive
+      ? 'Screen will stay awake (click to disable)'
+      : 'Keep screen awake';
   }
 
   _onRailSideChange(e) {
@@ -123,6 +175,44 @@ export class SettingsDialog extends LitElement {
       <div id="settingsBackdrop" @pointerdown=${this._onPointerDown} @click=${this.close}></div>
       <div id="settingsPanel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" @pointerdown=${this._onPointerDown}>
         <h3 id="settingsTitle">Settings</h3>
+
+        <div class="settings-row">
+          <label for="fontSizeInput">Font size</label>
+          <div class="settings-input-group">
+            <input
+              id="fontSizeInput"
+              type="range"
+              min="16"
+              max="180"
+              step="1"
+              .value=${String(this.fontSize)}
+              @input=${this._onFontSizeInput}
+              @change=${this._onFontSizeChange}
+            >
+            <span id="fontSizeValue">${this.fontSize}px</span>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <label for="wakeLockBtn">Keep screen awake</label>
+          <div class="settings-btn-group">
+            <button
+              id="wakeLockBtn"
+              type="button"
+              class="icon-btn ${this.wakeLockActive ? 'master-active' : ''}"
+              title="${this._wakeLockTitle()}"
+              aria-label="Keep screen awake"
+              ?disabled=${!this.wakeLockSupported}
+              @click=${this._onWakeLock}
+            >
+              ${unsafeHTML(this.wakeLockActive ? IconSun : IconMoon)}
+            </button>
+            <span id="wakeLockStatus" class="settings-text-muted">
+              ${!this.wakeLockSupported ? 'Not supported' : (this.wakeLockActive ? 'Active' : 'Off')}
+            </span>
+          </div>
+        </div>
+
         <div class="settings-row">
           <label for="railSideSelect">Overview rail</label>
           <select id="railSideSelect" .value=${this.railSide} @change=${this._onRailSideChange}>
@@ -130,6 +220,7 @@ export class SettingsDialog extends LitElement {
             <option value="left">Left</option>
           </select>
         </div>
+
         <div id="settingsMarginControls" aria-disabled="${marginDisabled ? 'true' : 'false'}">
           <div class="settings-row">
             <label for="annotationMarginSideSelect">Department annotation margin</label>
@@ -146,7 +237,7 @@ export class SettingsDialog extends LitElement {
           </div>
           <div class="settings-row">
             <label for="annotationMarginWidth">Margin width</label>
-            <div>
+            <div class="settings-input-group">
               <input
                 id="annotationMarginWidth"
                 type="range"
@@ -162,6 +253,7 @@ export class SettingsDialog extends LitElement {
             </div>
           </div>
         </div>
+
         <div id="settingsActions">
           <span id="settingsSaveStatus" role="status" class="${this.isError ? 'error' : ''}">${this.saveStatus}</span>
           <button id="settingsDoneBtn" type="button" @click=${this.close}>Done</button>

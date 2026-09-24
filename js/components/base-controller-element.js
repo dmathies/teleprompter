@@ -30,8 +30,8 @@ export class BaseControllerElement extends LitElement {
     this._unbindController();
   }
 
-  updated(changedProperties) {
-    super.updated(changedProperties);
+  willUpdate(changedProperties) {
+    super.willUpdate(changedProperties);
     if (changedProperties.has('controller')) {
       this._unbindController();
       this._bindController();

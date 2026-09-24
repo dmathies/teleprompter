@@ -17,6 +17,18 @@ while (ob_get_level() > 0) {
     @ob_end_flush();
 }
 
+require_once __DIR__ . '/util/api_common.php';
+
+$allPasswords = loadPasswords();
+$showPassword = $allPasswords['show'] ?? '';
+if (!isShowAuthenticated($showPassword)) {
+    http_response_code(401);
+    echo "event: error\n";
+    echo "data: {\"error\":\"Show authentication required\",\"code\":401}\n\n";
+    flush();
+    exit;
+}
+
 $room = $_GET['room'] ?? 'default';
 if (!preg_match('/^[A-Za-z0-9_-]+$/', $room)) {
     http_response_code(400);

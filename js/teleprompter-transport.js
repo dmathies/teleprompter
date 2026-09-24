@@ -4,6 +4,7 @@ export function createTeleprompterTransport({
     toolbarTransport,
     toolbarSliders,
     toolbarDisplay,
+    settingsDialog,
     getSyncMode = () => "follow",
     onManualControl = () => {},
     onStatusUpdate = () => {},
@@ -223,11 +224,22 @@ export function createTeleprompterTransport({
     }
 
     // Wake Lock
+    function setWakeLockUi(active, supported = true) {
+        if (settingsDialog) {
+            settingsDialog.wakeLockSupported = supported;
+            settingsDialog.wakeLockActive = active;
+        }
+        if (toolbarDisplay) {
+            toolbarDisplay.wakeLockSupported = supported;
+            toolbarDisplay.wakeLockActive = active;
+        }
+    }
+
     async function acquireWakeLock() {
         if (!wakeLockWanted) return;
 
         if (!("wakeLock" in navigator)) {
-            if (toolbarDisplay) toolbarDisplay.wakeLockSupported = false;
+            setWakeLockUi(false, false);
             return;
         }
 
@@ -236,16 +248,16 @@ export function createTeleprompterTransport({
 
         try {
             wakeLock = await navigator.wakeLock.request("screen");
-            if (toolbarDisplay) toolbarDisplay.wakeLockActive = true;
+            setWakeLockUi(true, true);
 
             wakeLock.addEventListener("release", () => {
                 wakeLock = null;
-                if (toolbarDisplay) toolbarDisplay.wakeLockActive = false;
+                setWakeLockUi(false, true);
             });
         } catch (err) {
             console.error("Failed to acquire wake lock", err);
             wakeLock = null;
-            if (toolbarDisplay) toolbarDisplay.wakeLockActive = false;
+            setWakeLockUi(false, true);
         }
     }
 
@@ -260,7 +272,7 @@ export function createTeleprompterTransport({
         }
 
         wakeLock = null;
-        if (toolbarDisplay) toolbarDisplay.wakeLockActive = false;
+        setWakeLockUi(false, "wakeLock" in navigator);
     }
 
     async function toggleWakeLock() {

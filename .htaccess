@@ -1,0 +1,40 @@
+# Apache configuration for GAOS Teleprompter
+# Ensures direct access to show scripts, state files, and private configuration is forbidden.
+# Enforces show password gatekeeper on application pages, scripts catalog, and sync endpoints.
+
+Options -Indexes
+
+# 1. Deny direct web access to sensitive directories and configuration files
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Completely block direct access to passwords, state data, show-scripts, show-cues, show-annotations
+  RewriteRule ^scripts/passwords(\.example)?\.php$ - [F,L]
+  RewriteRule ^scripts/teleprompter_state/ - [F,L]
+  RewriteRule ^show-scripts/ - [F,L]
+  RewriteRule ^show-cues/ - [F,L]
+  RewriteRule ^show-annotations/ - [F,L]
+  RewriteRule ^\.git - [F,L]
+
+  # Allow public assets and login directly
+  RewriteRule ^login\.php$ - [L]
+  RewriteRule ^assets/ - [L]
+  RewriteRule ^dist/ - [L]
+  RewriteRule ^css/ - [L]
+  RewriteRule ^js/ - [L]
+  RewriteRule ^favicon\.ico$ - [L]
+
+  # Route application and backend endpoints through gatekeeper.php
+  # If request does not have the show auth cookie and is requesting protected resources
+  RewriteCond %{REQUEST_URI} ^/(teleprompter_v2\.html|scripts/.*)$ [NC]
+  RewriteRule ^(.*)$ gatekeeper.php [QSA,L]
+</IfModule>
+
+# Fallback direct file protection in case mod_rewrite is disabled
+<Files "passwords*.php">
+  Require all denied
+</Files>
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>

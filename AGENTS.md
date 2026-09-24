@@ -55,7 +55,7 @@ polling, and server-sent events (SSE); there is no application database.
 
 There are three relevant client roles:
 
-- **Master (ASM):** controls playback, script selection, and the authoritative
+- **Master (PRM):** controls playback, script selection, and the authoritative
   semantic position. Master control is password protected and leased to a
   browser-session identity.
 - **Follower:** tracks fresh master state, may pause locally, and may later

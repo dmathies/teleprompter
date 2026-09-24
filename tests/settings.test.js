@@ -19,6 +19,21 @@ describe('Settings API Contract & Validation', () => {
     if (server) await server.stop();
   });
 
+  test('GET /scripts/settings_api.php?action=departments returns allowed departments and metadata', async (t) => {
+    if (!server || server.workers.length === 0) return t.skip('PHP server unavailable');
+    const res = await fetch(`${server.baseUrl}/scripts/settings_api.php?action=departments`);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.ok, true);
+    assert.ok(Array.isArray(data.departments), 'departments should be an array');
+    assert.ok(data.departments.includes('FS'));
+    assert.ok(data.departments.includes('LX'));
+    assert.ok(data.departments.includes('SND'));
+    assert.ok(data.departments.includes('STG'));
+    assert.ok(data.metadata && typeof data.metadata === 'object', 'metadata should be an object');
+    assert.ok(data.metadata.LX && data.metadata.LX.color);
+  });
+
   test('GET /scripts/settings_api.php?action=get validates departments and response contract', async (t) => {
     if (!server || server.workers.length === 0) return t.skip('PHP server unavailable');
     // Valid department

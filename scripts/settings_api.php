@@ -4,7 +4,11 @@ header('X-Content-Type-Options: nosniff');
 
 require_once __DIR__ . '/util/api_common.php';
 
-$passwords = loadPasswords()['departments'];
+$allPasswords = loadPasswords();
+$showPassword = $allPasswords['show'] ?? '';
+requireShowAccess($showPassword);
+
+$passwords = $allPasswords['departments'] ?? [];
 $stateDir = __DIR__ . '/teleprompter_state';
 $settingsFile = $stateDir . '/department_settings.json';
 
@@ -77,6 +81,14 @@ function departmentEntry(array $doc, string $department): array {
 }
 
 $action = $_GET['action'] ?? 'get';
+
+if ($action === 'departments') {
+    respondJson(200, [
+        'ok' => true,
+        'departments' => TP_ALLOWED_DEPARTMENTS,
+        'metadata' => TP_DEPARTMENT_METADATA,
+    ]);
+}
 
 if ($action === 'get') {
     $department = isset($_GET['dept']) ? strtoupper((string)$_GET['dept']) : '';

@@ -22,6 +22,13 @@ import "./components/toolbar-sync.js";
 import "./components/toolbar-sliders.js";
 import '@fontsource-variable/work-sans';
 import "@fontsource-variable/jetbrains-mono";
+import {
+    fetchDepartments,
+    getDepartments,
+    getDepartmentMetadata,
+    getDepartmentColor,
+    isAllowedDepartment
+} from "./departments.js";
 
 
 const dom = getTeleprompterDom();
@@ -57,28 +64,51 @@ const SSE_ENDPOINT = "/scripts/teleprompter_events.php";
 const SCRIPT_LIST_ENDPOINT = "/scripts/list_scripts.php";
 const SCRIPT_GET_ENDPOINT = "/scripts/get_script.php";
 const CUE_API_ENDPOINT = "/scripts/cue_api.php";
+let allowedDepartments = [];
+
 const ANNOTATION_API_ENDPOINT = "/scripts/annotation_api.php";
 const SETTINGS_API_ENDPOINT = "/scripts/settings_api.php";
 const RAIL_SIDE_STORAGE_KEY = "gaosTeleprompterRailSide";
-const ALLOWED_DEPARTMENTS = ["FS", "LX", "SND", "STG"];
-const DEPARTMENT_DEFAULT_COLORS = {
-    FS: "#ffd000",
-    LX: "#2f80ed",
-    SND: "#27ae60",
-    STG: "#00cfd5"
-};
+const FONT_SIZE_STORAGE_KEY = "gaosTeleprompterFontSize";
+const STAGE_DIRECTIONS_STORAGE_KEY = "gaosTeleprompterStageDirections";
+const DEPARTMENT_STORAGE_KEY = "gaosTeleprompterDepartment";
 const REFERENCE_LINE_FRACTION = 0.35;
 
+function getStoredDepartment() {
+    try {
+        return localStorage.getItem(DEPARTMENT_STORAGE_KEY) || "";
+    } catch (_) {
+        return "";
+    }
+}
+
+function getStoredFontSize() {
+    try {
+        const stored = parseInt(localStorage.getItem(FONT_SIZE_STORAGE_KEY), 10);
+        return Number.isFinite(stored) && stored >= 16 && stored <= 180 ? stored : 42;
+    } catch (_) {
+        return 42;
+    }
+}
+
+function getStoredStageDirections() {
+    try {
+        const stored = localStorage.getItem(STAGE_DIRECTIONS_STORAGE_KEY);
+        return stored === "true";
+    } catch (_) {
+        return false;
+    }
+}
+
 const query = new URLSearchParams(window.location.search);
-const requestedDepartment = (query.get("dept") || "").toUpperCase();
-const activeDepartment = ALLOWED_DEPARTMENTS.includes(requestedDepartment)
-    ? requestedDepartment
-    : null;
+const hasDeptQueryParam = query.has("dept");
+const requestedDepartment = (query.get("dept") || "").trim().toUpperCase();
+let activeDepartment = requestedDepartment || null;
 
 let availableScripts = [];
 let currentScriptId = null;
 let scriptLoadSerial = 0;
-let showStageDirections = false;
+let showStageDirections = getStoredStageDirections();
 let cachedPromptBlocks = [];
 
 function refreshPromptBlockCache() {
@@ -96,11 +126,13 @@ const semanticPosition = createSemanticPositionApi({
 
 const annotationStore = createAnnotationStore();
 
+let currentFontSize = getStoredFontSize();
+
 const annotationGeometry = createAnnotationGeometry({
     content,
     fontSizeInput: {
         get value() {
-            return toolbarSliders ? toolbarSliders.fontSize : 42;
+            return currentFontSize;
         }
     },
     getDepartmentMargin: () => departmentSettings.departmentMarginSetting(),
@@ -175,6 +207,7 @@ const transport = createTeleprompterTransport({
     toolbarTransport,
     toolbarSliders,
     toolbarDisplay,
+    settingsDialog,
     getSyncMode: () => syncEngine.getSyncMode(),
     onManualControl: () => syncEngine.pauseFollowingForManualControl(),
     onStatusUpdate: () => updateStatus(),
@@ -189,7 +222,7 @@ const cuesManager = createCuesManager({
     cueEditorDialog,
     toolbarSync,
     cueApiEndpoint: CUE_API_ENDPOINT,
-    departmentDefaultColors: DEPARTMENT_DEFAULT_COLORS,
+    departmentDefaultColors: (dept) => getDepartmentColor(dept),
     getActiveDepartment: () => activeDepartment,
     getCurrentScriptId: () => currentScriptId,
     getCachedPromptBlocks: promptBlocks,
@@ -277,7 +310,7 @@ if (annotationToolbar) annotationToolbar.controller = annotationsController;
 
 const {openExportPanel, closeExportPanel, startPdfExport} = createPdfExporter({
     exportDialog,
-    ALLOWED_DEPARTMENTS,
+    ALLOWED_DEPARTMENTS: allowedDepartments,
     CUE_API_ENDPOINT,
     ANNOTATION_API_ENDPOINT,
     SETTINGS_API_ENDPOINT,
@@ -320,8 +353,46 @@ function applyStageDirectionVisibility() {
     });
 }
 
+async function loadDepartments() {
+    allowedDepartments = await fetchDepartments(SETTINGS_API_ENDPOINT);
+    const meta = getDepartmentMetadata();
+    if (toolbarSync) {
+        toolbarSync.departmentMetadata = meta;
+        toolbarSync.allowedDepartments = allowedDepartments;
+    }
+    if (exportDialog) {
+        exportDialog.departmentMetadata = meta;
+        exportDialog.allowedDepartments = allowedDepartments;
+    }
+    if (hasDeptQueryParam) {
+        if (requestedDepartment && isAllowedDepartment(requestedDepartment)) {
+            activeDepartment = requestedDepartment;
+            try {
+                localStorage.setItem(DEPARTMENT_STORAGE_KEY, activeDepartment);
+            } catch (_) {}
+        } else {
+            activeDepartment = null;
+            try {
+                localStorage.removeItem(DEPARTMENT_STORAGE_KEY);
+            } catch (_) {}
+        }
+    } else {
+        const storedDept = getStoredDepartment();
+        if (storedDept && isAllowedDepartment(storedDept)) {
+            activeDepartment = storedDept;
+        } else {
+            activeDepartment = null;
+        }
+    }
+    if (toolbarSync) toolbarSync.activeDepartment = activeDepartment;
+}
+
 async function loadAvailableScripts() {
     const r = await fetch(SCRIPT_LIST_ENDPOINT, {cache: "no-store"});
+    if (r.status === 401) {
+        window.location.href = "/login.php?redirect=" + encodeURIComponent(window.location.href);
+        return;
+    }
     if (!r.ok) throw new Error("script list");
     const data = await r.json();
     availableScripts = Array.isArray(data.scripts) ? data.scripts : [];
@@ -412,7 +483,14 @@ function jumpToPromptId(promptId) {
 }
 
 function applyFontSize(size) {
-    const val = size || (toolbarSliders ? toolbarSliders.fontSize : 42);
+    const val = size || currentFontSize || 42;
+    currentFontSize = val;
+    try {
+        localStorage.setItem(FONT_SIZE_STORAGE_KEY, String(val));
+    } catch (_) {}
+    if (settingsDialog) {
+        settingsDialog.fontSize = val;
+    }
     syncEngine.preserveSemanticPositionDuringLayoutChange(() => {
         content.style.fontSize = val + "px";
     });
@@ -541,10 +619,22 @@ if (toolbarSync) {
     toolbarSync.addEventListener("annotate", annotationsController.startAnnotationMode);
     toolbarSync.addEventListener("next-cue", cuesManager.jumpToNextCue);
     toolbarSync.addEventListener("rejoin", syncEngine.rejoinMaster);
-    toolbarSync.addEventListener("sync-status-click", () => {
-        if (syncEngine.getSyncMode() === "follow" && !syncEngine.isFollowingLive()) {
-            syncEngine.rejoinMaster();
+    toolbarSync.addEventListener("select-department", (e) => {
+        const nextDept = (e.detail.department || "").trim().toUpperCase();
+        try {
+            if (nextDept) {
+                localStorage.setItem(DEPARTMENT_STORAGE_KEY, nextDept);
+            } else {
+                localStorage.removeItem(DEPARTMENT_STORAGE_KEY);
+            }
+        } catch (_) {}
+        const nextUrl = new URL(window.location.href);
+        if (nextDept) {
+            nextUrl.searchParams.set("dept", nextDept);
+        } else {
+            nextUrl.searchParams.delete("dept");
         }
+        window.location.href = nextUrl.toString();
     });
 }
 
@@ -555,6 +645,16 @@ if (settingsDialog) {
     });
     settingsDialog.addEventListener("margin-change", (e) => {
         departmentSettings.queueDepartmentMarginSave(e.detail.side, e.detail.width);
+    });
+    settingsDialog.addEventListener("font-size-input", (e) => {
+        applyFontSize(e.detail.fontSize);
+    });
+    settingsDialog.addEventListener("font-size-change", (e) => {
+        applyFontSize(e.detail.fontSize);
+    });
+    settingsDialog.addEventListener("toggle-wakelock", async () => {
+        transport.scheduleToolbarHide();
+        await transport.toggleWakeLock();
     });
 }
 
@@ -589,12 +689,11 @@ if (toolbarNavigation) {
 
 if (toolbarDisplay) {
     toolbarDisplay.addEventListener("toggle-fullscreen", transport.toggleFullscreen);
-    toolbarDisplay.addEventListener("toggle-wakelock", async () => {
-        transport.scheduleToolbarHide();
-        await transport.toggleWakeLock();
-    });
     toolbarDisplay.addEventListener("toggle-stage-directions", () => {
         showStageDirections = !showStageDirections;
+        try {
+            localStorage.setItem(STAGE_DIRECTIONS_STORAGE_KEY, String(showStageDirections));
+        } catch (_) {}
         toolbarDisplay.showStageDirections = showStageDirections;
         applyStageDirectionVisibility();
     });
@@ -602,14 +701,11 @@ if (toolbarDisplay) {
     toolbarDisplay.addEventListener("open-export", openExportPanel);
 }
 
-if (toolbarSliders) {
-    toolbarSliders.addEventListener("font-size-input", (e) => {
-        applyFontSize(e.detail.fontSize);
-    });
-    toolbarSliders.addEventListener("font-size-change", (e) => {
-        applyFontSize(e.detail.fontSize);
-    });
-}
+document.getElementById("follow-paused-click").addEventListener("click", () => {
+    if (syncEngine.getSyncMode() === "follow" && !syncEngine.isFollowingLive()) {
+        syncEngine.rejoinMaster();
+    }
+});
 
 cuesManager.updateCueLockUi();
 departmentSettings.loadDisplaySettings();
@@ -644,6 +740,7 @@ updateStatus();
 
 async function initializeTeleprompter() {
     try {
+        await loadDepartments();
         if (activeDepartment) {
             await departmentSettings.loadCentralDepartmentSettings({preservePosition: false});
         }

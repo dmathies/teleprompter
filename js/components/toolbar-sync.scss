@@ -6,11 +6,26 @@
   gap: 6px;
 }
 
-#deptLabel {
+#deptLabel,
+#deptSelect {
   font-weight: 700;
   color: $color-text-secondary;
-  min-width: 28px;
-  text-align: right;
+}
+
+#deptSelect {
+  height: 38px;
+  padding: 0 6px;
+  font-size: 14px;
+  box-sizing: border-box;
+  background: $color-bg-input;
+  border: 1px solid $border-color-default;
+  border-radius: 4px;
+  cursor: pointer;
+  outline: none;
+
+  &:focus {
+    border-color: $border-color-focus;
+  }
 }
 
 #addCueBtn[hidden],
@@ -24,28 +39,108 @@
   height: 0.85em;
 }
 
-.password-panel {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  border: 1px solid $border-color-default;
-  border-radius: $btn-radius;
-  background: $color-bg-panel-alt;
+.password-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: $z-dialog-backdrop;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  touch-action: none;
 
   &[hidden] {
     display: none;
   }
 }
 
+.password-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: $z-dialog-panel;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(380px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid $border-color-panel;
+  border-radius: $panel-radius;
+  background: $color-bg-panel;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.85);
+  color: $color-text-primary;
+  pointer-events: auto;
+  box-sizing: border-box;
+
+  &[hidden] {
+    display: none;
+  }
+
+  .password-panel-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: $color-text-secondary;
+    user-select: none;
+  }
+
+  .password-panel-inputs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
 #masterPassword {
-  width: 150px;
+  flex: 1;
+  min-width: 0;
+  height: 38px;
   background: $color-bg-input;
   color: $color-text-primary;
   border: 1px solid $border-color-default;
   border-radius: 4px;
-  padding: 6px 8px;
+  padding: 0 10px;
   font-size: 15px;
+  box-sizing: border-box;
+  outline: none;
+
+  &:focus {
+    border-color: $border-color-focus;
+  }
+}
+
+.password-btn {
+  height: 38px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease, opacity 0.2s ease;
+
+  &.primary {
+    background: #2a69ac;
+    color: #fff;
+
+    &:hover {
+      background: #3580d0;
+    }
+  }
+
+  &.danger {
+    background: #a82424;
+    color: #fff;
+
+    &:hover {
+      background: #c72b2b;
+    }
+  }
+}
+
+#masterCancelBtn {
+  height: 38px;
+  min-width: 38px;
+  padding: 0;
 }
 
 #masterBtn.master-active {
@@ -74,24 +169,137 @@
   }
 }
 
-#masterHealthStatus {
-  color: $color-text-muted;
-  white-space: nowrap;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
+.status-indicators-container {
+  position: fixed;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #111111cc;
+  border-radius: $btn-radius;
+  pointer-events: auto;
+  user-select: none;
+}
 
-  .health-ok {
-    color: $color-sync-ok;
+.health-indicators-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-indicator-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:hover .indicator-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
   }
-  .health-warn {
-    color: $color-sync-warn;
+
+  // Adjust first child to keep within screen edge
+  &:first-child .indicator-tooltip {
+    left: 0;
+    transform: translateX(0) translateY(4px);
+
+    &::before {
+      left: 6px;
+    }
   }
-  .health-error {
-    color: $color-sync-error;
-    font-weight: 700;
+
+  &:first-child:hover .indicator-tooltip {
+    transform: translateX(0) translateY(0);
   }
-  .health-idle {
-    color: $color-sync-idle;
+}
+
+.indicator-tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: rgba(18, 18, 18, 0.95);
+  color: #ffffff;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+  z-index: 10000;
+  font-family: $font-family-base;
+  font-variant-numeric: tabular-nums;
+  animation: none !important;
+
+  // Arrow pointing down to dot
+  &::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px 6px 0 6px;
+    border-style: solid;
+    border-color: rgba(18, 18, 18, 0.95) transparent transparent transparent;
+  }
+}
+
+.status-indicator-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px; // 4px radius
+  flex-shrink: 0;
+  transition: background-color 0.25s ease, box-shadow 0.25s ease;
+
+  &.indicator-ok {
+    background-color: #27ae60;
+    box-shadow: 0 0 4px rgba(39, 174, 96, 0.5);
+  }
+
+  &.indicator-warn {
+    background-color: #f39c12;
+    box-shadow: 0 0 4px rgba(243, 156, 18, 0.5);
+  }
+
+  &.indicator-error {
+    background-color: #e74c3c;
+    box-shadow: 0 0 6px rgba(231, 76, 60, 0.8);
+    animation: indicator-pulse 1.2s infinite ease-in-out;
+  }
+
+  &.indicator-idle {
+    background-color: #7f8c8d;
+    opacity: 0.6;
+  }
+}
+
+@keyframes indicator-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 4px rgba(231, 76, 60, 0.8);
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.55;
+    box-shadow: 0 0 10px rgba(231, 76, 60, 1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 4px rgba(231, 76, 60, 0.8);
   }
 }
 
@@ -101,7 +309,10 @@
     font-size: 13px !important;
   }
 
-  #masterHealthStatus {
-    font-size: 12px !important;
+  .status-indicators-container {
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    left: calc(8px + env(safe-area-inset-left, 0px));
+    padding: 5px 8px;
+    gap: 6px;
   }
 }

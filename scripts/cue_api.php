@@ -5,8 +5,12 @@ header('X-Content-Type-Options: nosniff');
 
 require_once __DIR__ . '/util/api_common.php';
 
+$allPasswords = loadPasswords();
+$showPassword = $allPasswords['show'] ?? '';
+requireShowAccess($showPassword);
+
 $catalog = require __DIR__ . '/script_catalog.php';
-$passwords = loadPasswords()['departments'];
+$passwords = $allPasswords['departments'] ?? [];
 $cueDir = dirname(__DIR__) . '/show-cues';
 $stateDir = __DIR__ . '/teleprompter_state';
 $signalFile = $stateDir . '/cue_revisions.json';

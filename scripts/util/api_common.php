@@ -4,7 +4,15 @@
 
 require_once __DIR__ . '/auth_cookie.php';
 
-const TP_ALLOWED_DEPARTMENTS = ['FS', 'LX', 'SND', 'STG'];
+const TP_DEPARTMENT_METADATA = [
+    'FS'  => ['name' => 'FS',  'label' => 'Follow Spot',          'color' => '#fb5050'],
+    'LX'  => ['name' => 'LX',  'label' => 'Lighting',             'color' => '#2f80ed'],
+    'SND' => ['name' => 'SND', 'label' => 'Sound',                'color' => '#27ae60'],
+    'STG' => ['name' => 'STG', 'label' => 'Stage Management',     'color' => '#00cfd5'],
+    'CAL' => ['name' => 'CAL', 'label' => 'Caller',               'color' => '#ffd000'],
+];
+
+const TP_ALLOWED_DEPARTMENTS = ['FS', 'LX', 'SND', 'STG', 'CAL'];
 
 function respondJson(int $status, array $body): never {
     http_response_code($status);
@@ -128,12 +136,31 @@ function mutateJsonLocked(string $file, callable $mutator, bool $pretty = false)
 function loadPasswords(): array {
     $passwordConfig = require dirname(__DIR__) . '/passwords.php';
     if (!is_array($passwordConfig)) {
-        return ['master' => '', 'departments' => []];
+        return ['show' => '', 'master' => '', 'departments' => []];
     }
     return [
+        'show' => is_string($passwordConfig['show'] ?? null) ? $passwordConfig['show'] : '',
         'master' => is_string($passwordConfig['master'] ?? null) ? $passwordConfig['master'] : '',
         'departments' => is_array($passwordConfig['departments'] ?? null) ? $passwordConfig['departments'] : [],
     ];
+}
+
+function isShowAuthenticated(string $showPassword): bool {
+    if ($showPassword === '') {
+        // If no show password configured, open access
+        return true;
+    }
+    $headerKey = getHeader('X-Show-Key');
+    if ($headerKey !== '' && hash_equals($showPassword, $headerKey)) {
+        return true;
+    }
+    return isAuthCookieValid('show', $showPassword);
+}
+
+function requireShowAccess(string $showPassword): void {
+    if (!isShowAuthenticated($showPassword)) {
+        respondJson(401, ['ok' => false, 'error' => 'Show authentication required']);
+    }
 }
 
 function requireDepartmentEditor(string $dept, array $passwords): void {

@@ -45,7 +45,23 @@ toolbar-display,
 toolbar-navigation,
 toolbar-sync,
 toolbar-sliders {
-  display: contents;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+button, input, select {
+  line-height: 1;
+  border-radius: $btn-radius;
+  cursor: pointer;
+  border: none;
+  background: #333;
+  color: #ccc;
+  transition: background .28s ease;
+
+  &:hover {
+    background: #444;
+  }
 }
 
 .icon-btn {
@@ -57,9 +73,6 @@ toolbar-sliders {
   justify-content: center;
   gap: 4px;
   font-size: 18px !important;
-  line-height: 1;
-  border-radius: $btn-radius;
-  cursor: pointer;
 
   svg {
     width: 1.15em;
@@ -87,19 +100,48 @@ body.toolbar-hidden #toolbar {
   pointer-events: none;
 }
 
-body.follow-paused {
-  #toolbar {
-    box-shadow: inset 0 -4px 0 #d22, 0 5px 14px rgba(0, 0, 0, .6);
-  }
-
-  #syncStatus {
-    color: #fff !important;
-    background: #a00;
-    border-radius: 4px;
-    padding: 4px 7px;
-    font-weight: 800;
+#follow-paused-overlay {
+  display: none;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  z-index: $z-index-follow-paused-overlay;
+  border: 4px solid #c00;
+  border-radius: 4px;
+  div {
+    color: #fff;
+    font-size: 18pt;
+    font-weight: 600;
+    text-align: center;
+    background: #c00;
+    width: fit-content;
+    height: fit-content;
+    margin: auto;
+    padding: 10px;
+    border-radius: 8px 8px 0 0;
+    bottom: 0;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    pointer-events: bounding-box !important;
     cursor: pointer;
-    pointer-events: auto;
+    user-select: none;
+    -webkit-user-select: none;
+    
+    @media (width < 500px) {
+      font-size: 12pt;
+    }
+  }
+}
+
+body.follow-paused {
+  #follow-paused-overlay {
+    display: block;
   }
 }
 

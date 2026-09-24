@@ -17,6 +17,8 @@ export class ToolbarSync extends BaseControllerElement {
   static properties = {
     ...BaseControllerElement.properties,
     activeDepartment: { type: String },
+    allowedDepartments: { type: Array },
+    departmentMetadata: { type: Object },
     syncMode: { type: String },
     isMaster: { type: Boolean },
     cueEditorUnlocked: { type: Boolean },
@@ -40,6 +42,8 @@ export class ToolbarSync extends BaseControllerElement {
   constructor() {
     super();
     this.activeDepartment = null;
+    this.allowedDepartments = ['FS', 'LX', 'SND', 'STG'];
+    this.departmentMetadata = {};
     this.syncMode = 'follow';
     this.isMaster = false;
     this.cueEditorUnlocked = false;
@@ -52,7 +56,7 @@ export class ToolbarSync extends BaseControllerElement {
     this.healthClass = '';
     this.healthItems = null;
     this.healthChecks = null;
-    this.healthTitle = 'Master/server heartbeat and time since ASM interaction';
+    this.healthTitle = 'Master/server heartbeat and time since PRM interaction';
   }
 
   focusPassword() {
@@ -106,10 +110,6 @@ export class ToolbarSync extends BaseControllerElement {
     this.dispatchEvent(new CustomEvent('rejoin', { bubbles: true, composed: true }));
   }
 
-  _onSyncStatusClick() {
-    this.dispatchEvent(new CustomEvent('sync-status-click', { bubbles: true, composed: true }));
-  }
-
   _onSubmitPassword() {
     const password = this.getPasswordValue();
     this.dispatchEvent(new CustomEvent('submit-password', {
@@ -143,9 +143,18 @@ export class ToolbarSync extends BaseControllerElement {
     }
   }
 
+  _onDepartmentChange(e) {
+    const department = e.target.value;
+    this.dispatchEvent(new CustomEvent('select-department', {
+      detail: { department },
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
   render() {
     const deptMode = !!this.activeDepartment;
-    const deptLabelText = deptMode ? this.activeDepartment : 'ASM';
+    const currentVal = this.activeDepartment || '';
 
     let masterActive = false;
     let masterUnlocked = false;
@@ -170,8 +179,28 @@ export class ToolbarSync extends BaseControllerElement {
       ? `Unlock ${this.activeDepartment} cue editing`
       : 'Authenticate as master';
 
+    const depts = Array.isArray(this.allowedDepartments) && this.allowedDepartments.length > 0
+      ? this.allowedDepartments
+      : ['FS', 'LX', 'SND', 'STG'];
+
+    const meta = this.departmentMetadata || {};
+
     return html`
-      <span id="deptLabel">${deptLabelText}</span>
+      <select
+        id="deptSelect"
+        class="dept-select"
+        title="Department role"
+        aria-label="Department role"
+        .value=${currentVal}
+        @change=${this._onDepartmentChange}
+      >
+        <option value="" ?selected=${!this.activeDepartment}>PRM - Prompt</option>
+        ${depts.map((d) => {
+          const entry = meta[d];
+          const label = entry && entry.label ? `${d} - ${entry.label}` : d;
+          return html`<option value="${d}" ?selected=${this.activeDepartment === d}>${label}</option>`;
+        })}
+      </select>
       <button
         id="masterBtn"
         class="icon-btn ${masterActive ? 'master-active' : ''}"
@@ -222,96 +251,193 @@ export class ToolbarSync extends BaseControllerElement {
         ${unsafeHTML(IconCircleDot)}
       </button>
 
-      <div id="passwordPanel" class="password-panel" ?hidden=${!this.passwordOpen}>
-        <input
-          id="masterPassword"
-          type="password"
-          autocomplete="current-password"
-          placeholder="${passwordPlaceholder}"
-          aria-label="${passwordPlaceholder}"
-          ?hidden=${this.conflictActive}
-          @keydown=${this._onPasswordKeyDown}
-        >
-        <button
-          id="masterLoginBtn"
-          title="${loginBtnTitle}"
-          ?hidden=${this.conflictActive}
-          @click=${this._onSubmitPassword}
-        >
-          Unlock
-        </button>
-        <button
-          id="takeControlBtn"
-          title="Take master control"
-          ?hidden=${!this.conflictActive}
-          @click=${this._onTakeControl}
-        >
-          Take control
-        </button>
-        <button
-          id="masterCancelBtn"
-          class="icon-btn"
-          title="Cancel"
-          aria-label="Cancel"
-          @click=${this._onCancelPassword}
-        >
-          ${unsafeHTML(IconXmark)}
-        </button>
+      <div
+        id="passwordBackdrop"
+        class="password-backdrop"
+        ?hidden=${!this.passwordOpen}
+        @click=${this._onCancelPassword}
+        @pointerdown=${(e) => e.stopPropagation()}
+      ></div>
+
+      <div
+        id="passwordPanel"
+        class="password-panel"
+        role="dialog"
+        aria-label="Authentication"
+        ?hidden=${!this.passwordOpen}
+        @pointerdown=${(e) => e.stopPropagation()}
+      >
+        <div class="password-panel-title">
+          <span>${deptMode ? `${this.activeDepartment} Editor Access` : 'Master Control Access'}</span>
+        </div>
+        <div class="password-panel-inputs">
+          <input
+            id="masterPassword"
+            type="password"
+            autocomplete="current-password"
+            placeholder="${passwordPlaceholder}"
+            aria-label="${passwordPlaceholder}"
+            ?hidden=${this.conflictActive}
+            @keydown=${this._onPasswordKeyDown}
+          >
+          <button
+            id="masterLoginBtn"
+            class="password-btn primary"
+            title="${loginBtnTitle}"
+            ?hidden=${this.conflictActive}
+            @click=${this._onSubmitPassword}
+          >
+            Unlock
+          </button>
+          <button
+            id="takeControlBtn"
+            class="password-btn danger"
+            title="Take master control"
+            ?hidden=${!this.conflictActive}
+            @click=${this._onTakeControl}
+          >
+            Take control
+          </button>
+          <button
+            id="masterCancelBtn"
+            class="icon-btn"
+            title="Cancel"
+            aria-label="Cancel"
+            @click=${this._onCancelPassword}
+          >
+            ${unsafeHTML(IconXmark)}
+          </button>
+        </div>
       </div>
 
       <div
-        id="syncStatus"
-        class="${this.syncStatusClass}"
-        @click=${this._onSyncStatusClick}
+        id="statusIndicators"
+        class="status-indicators-container"
+        aria-label="System status"
       >
-        ${this.syncStatusText}
-      </div>
-      <div
-        id="masterHealthStatus"
-        class="${this.healthClass}"
-        title="${this.healthTitle}"
-      >
-        ${this._renderHealthStatus()}
+        <div class="status-indicator-item" role="status">
+          <span class="status-indicator-dot ${this._getSyncIndicatorColorClass()}"></span>
+          <span class="indicator-tooltip">Sync: ${this.syncStatusText || 'Unknown'}</span>
+        </div>
+        ${this._renderHealthIndicators()}
       </div>
     `;
   }
 
-  _renderHealthStatus() {
+  _getSyncIndicatorColorClass() {
+    const cls = this.syncStatusClass || '';
+    if (cls.includes('error')) return 'indicator-error';
+    if (cls.includes('warn')) return 'indicator-warn';
+    if (cls.includes('ok')) return 'indicator-ok';
+    const text = (this.syncStatusText || '').toLowerCase();
+    if (text.includes('error') || text.includes('wrong')) return 'indicator-error';
+    if (text.includes('warn') || text.includes('paused') || text.includes('connecting') || text.includes('fallback') || text.includes('waiting')) return 'indicator-warn';
+    if (text.includes('ok') || text.includes('live') || text.includes('connected')) return 'indicator-ok';
+    return 'indicator-idle';
+  }
+
+  _classToIndicator(className) {
+    if (!className) return 'indicator-idle';
+    if (className.includes('health-error') || className.includes('error')) return 'indicator-error';
+    if (className.includes('health-warn') || className.includes('warn')) return 'indicator-warn';
+    if (className.includes('health-ok') || className.includes('ok')) return 'indicator-ok';
+    return 'indicator-idle';
+  }
+
+  _renderHealthIndicators() {
     if (this.healthChecks && typeof this.healthChecks === 'object') {
       const { mode, server, master, net, input, ptp } = this.healthChecks;
-      const ptpBadge = ptp && ptp.synced
-        ? html`<span class="health-ok" title="PTP Synced: RTT ${ptp.rttMs}ms, offset ${ptp.offsetMs}ms">PTP ±${Math.abs(ptp.offsetMs)}ms</span>`
-        : '';
+
+      const indicators = [];
 
       if (mode === 'master') {
-        return html`
-          ${server ? html`<span class="${server.className || ''}">SERVER ● ${server.formattedAge || formatHealthAge(server.ageMs)}</span>` : ''}
-          ${server && input ? ' · ' : ''}
-          ${input ? html`<span class="${input.className || ''}">${input.label} ${input.formattedAge || formatHealthAge(input.ageMs)}</span>` : ''}
-          ${ptpBadge ? html` · ${ptpBadge}` : ''}
-        `;
+        if (server) {
+          const age = server.formattedAge || formatHealthAge(server.ageMs);
+          indicators.push(html`
+            <div class="status-indicator-item">
+              <span class="status-indicator-dot ${this._classToIndicator(server.className)}"></span>
+              <span class="indicator-tooltip">Server: ${age}</span>
+            </div>
+          `);
+        }
+        if (input) {
+          const age = input.formattedAge || formatHealthAge(input.ageMs);
+          const label = input.label || 'Input';
+          indicators.push(html`
+            <div class="status-indicator-item">
+              <span class="status-indicator-dot ${this._classToIndicator(input.className)}"></span>
+              <span class="indicator-tooltip">${label}: ${age}</span>
+            </div>
+          `);
+        }
       } else if (mode === 'follower') {
-        return html`
-          ${master ? html`<span class="${master.className || ''}">MASTER ● ${master.formattedAge || formatHealthAge(master.ageMs)}</span>` : ''}
-          ${master && net ? ' · ' : ''}
-          ${net ? html`<span class="${net.className || ''}">NET ● ${net.formattedAge || formatHealthAge(net.ageMs)}</span>` : ''}
-          ${(master || net) && input ? ' · ' : ''}
-          ${input ? html`<span class="${input.className || ''}">${input.label} ${input.formattedAge || formatHealthAge(input.ageMs)}</span>` : ''}
-          ${ptpBadge ? html` · ${ptpBadge}` : ''}
-        `;
+        if (master) {
+          const age = master.formattedAge || formatHealthAge(master.ageMs);
+          indicators.push(html`
+            <div class="status-indicator-item">
+              <span class="status-indicator-dot ${this._classToIndicator(master.className)}"></span>
+              <span class="indicator-tooltip">Master: ${age}</span>
+            </div>
+          `);
+        }
+        if (net) {
+          const age = net.formattedAge || formatHealthAge(net.ageMs);
+          indicators.push(html`
+            <div class="status-indicator-item">
+              <span class="status-indicator-dot ${this._classToIndicator(net.className)}"></span>
+              <span class="indicator-tooltip">Net: ${age}</span>
+            </div>
+          `);
+        }
+        if (input) {
+          const age = input.formattedAge || formatHealthAge(input.ageMs);
+          const label = input.label || 'Input';
+          indicators.push(html`
+            <div class="status-indicator-item">
+              <span class="status-indicator-dot ${this._classToIndicator(input.className)}"></span>
+              <span class="indicator-tooltip">${label}: ${age}</span>
+            </div>
+          `);
+        }
       }
+
+      if (ptp && ptp.synced) {
+        const ptpText = `PTP: ±${Math.abs(ptp.offsetMs)}ms (RTT ${ptp.rttMs}ms)`;
+        indicators.push(html`
+          <div class="status-indicator-item">
+            <span class="status-indicator-dot indicator-ok"></span>
+            <span class="indicator-tooltip">${ptpText}</span>
+          </div>
+        `);
+      }
+
+      return html`<div id="masterHealthStatus" class="health-indicators-group" title="${this.healthTitle}">${indicators}</div>`;
     }
 
     if (Array.isArray(this.healthItems)) {
-      return this.healthItems.map((item, index) => html`
-        ${index > 0 ? ' · ' : ''}
-        <span class="${item.className || ''}">
-          ${item.label}${item.dot ? ' ● ' : ' '}${item.value}
-        </span>
-      `);
+      return html`
+        <div id="masterHealthStatus" class="health-indicators-group" title="${this.healthTitle}">
+          ${this.healthItems.map(item => html`
+            <div class="status-indicator-item">
+              <span class="status-indicator-dot ${this._classToIndicator(item.className)}"></span>
+              <span class="indicator-tooltip">${item.label}: ${item.value}</span>
+            </div>
+          `)}
+        </div>
+      `;
     }
 
-    return this.healthHtml ? unsafeHTML(this.healthHtml) : (this.healthText || '');
+    if (this.healthText || this.healthHtml) {
+      const txt = this.healthText || this.healthTitle;
+      return html`
+        <div id="masterHealthStatus" class="status-indicator-item">
+          <span class="status-indicator-dot ${this._classToIndicator(this.healthClass)}"></span>
+          <span class="indicator-tooltip">${txt}</span>
+        </div>
+      `;
+    }
+
+    return '';
   }
 }
 

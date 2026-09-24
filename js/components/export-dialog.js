@@ -5,6 +5,8 @@ export class ExportDialog extends LitElement {
   static properties = {
     open: { type: Boolean },
     department: { type: String },
+    allowedDepartments: { type: Array },
+    departmentMetadata: { type: Object },
     stageDirections: { type: String },
     exportCues: { type: Boolean },
     exportAnnotations: { type: Boolean },
@@ -22,6 +24,8 @@ export class ExportDialog extends LitElement {
     super();
     this.open = false;
     this.department = 'ALL';
+    this.allowedDepartments = ['FS', 'LX', 'SND', 'STG'];
+    this.departmentMetadata = {};
     this.stageDirections = 'all';
     this.exportCues = true;
     this.exportAnnotations = true;
@@ -110,10 +114,11 @@ export class ExportDialog extends LitElement {
           <label for="exportDepartment">Cues / annotations</label>
           <select id="exportDepartment" .value=${this.department} @change=${this._onDepartmentChange}>
             <option value="ALL">All departments</option>
-            <option value="FS">FS</option>
-            <option value="LX">LX</option>
-            <option value="SND">SND</option>
-            <option value="STG">STG</option>
+            ${(this.allowedDepartments || ['FS', 'LX', 'SND', 'STG']).map((d) => {
+              const meta = this.departmentMetadata && this.departmentMetadata[d];
+              const label = meta && meta.label ? `${d} - ${meta.label}` : d;
+              return html`<option value="${d}" ?selected=${this.department === d}>${label}</option>`;
+            })}
             <option value="NONE">Script only</option>
           </select>
         </div>

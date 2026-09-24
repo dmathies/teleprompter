@@ -45,7 +45,10 @@ export function createCuesManager({
     let cuePositionTracking = null; // null, "start", or "end"
 
     function departmentDefaultColor(dept = getActiveDepartment()) {
-        return departmentDefaultColors[dept] || "#ffd000";
+        if (typeof departmentDefaultColors === "function") {
+            return departmentDefaultColors(dept);
+        }
+        return (departmentDefaultColors && departmentDefaultColors[dept]) || "#ffd000";
     }
 
     function clearCueDecorations() {
