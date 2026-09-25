@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isShowAuthenticated($showPassword)) 
     body {
       background-color: var(--bg-color);
       color: var(--text-color);
-      font-family: var(--font-family);
+      font-family: var(--font-family), sans-serif;
       min-height: 100vh;
       display: flex;
       align-items: center;

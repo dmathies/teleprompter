@@ -9,7 +9,7 @@
     "php": "node dev_scripts/start-php.js",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test tests/*.test.js"
+    "test": "node --import ./tests/harness/register-loader.js --test tests/*.test.js"
   },
   "devDependencies": {
     "@iconify-json/fa6-regular": "^1.2.4",
