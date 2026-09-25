@@ -32,7 +32,6 @@ export function createPdfExporter(deps) {
 
       function closeExportPanel() {
         if (exportDialog) {
-          exportDialog.close();
           return;
         }
         if (exportPanel) exportPanel.hidden = true;

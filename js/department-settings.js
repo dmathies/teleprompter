@@ -198,9 +198,6 @@ export function createDepartmentSettings({
     }
 
     function closeSettingsPanel() {
-        if (settingsDialog) {
-            settingsDialog.close();
-        }
         scheduleToolbarHide();
     }
 

@@ -4,7 +4,7 @@
   position: fixed;
   inset: 0;
   z-index: $z-dialog-backdrop;
-  background: rgba(0, 0, 0, 0.5);
+  background: $color-bg-backdrop;
   pointer-events: auto;
   touch-action: none;
 
@@ -25,7 +25,7 @@
   border: 1px solid $border-color-panel;
   border-radius: $panel-radius;
   background: $color-bg-panel;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.78);
+  box-shadow: $panel-box-shadow;
   color: $color-text-primary;
   font-size: 16px;
   pointer-events: auto;
@@ -59,10 +59,10 @@
   }
 
   select {
-    height: 36px;
+    height: $input-height;
     padding: 0 8px;
     border: 1px solid $border-color-default;
-    border-radius: 5px;
+    border-radius: $btn-radius;
     background: $color-bg-input;
     color: $color-text-primary;
   }

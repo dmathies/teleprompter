@@ -1,0 +1,121 @@
+@use "variables" as *;
+
+// Core reset & base document styles
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: $color-bg-base;
+  color: $color-text-primary;
+  overflow: hidden;
+  font-family: $font-family-base;
+}
+
+// Global typography and labels
+label {
+  color: $color-text-secondary;
+}
+
+// Global button, text input, and select controls
+button, input, select {
+  font-family: inherit;
+  border-radius: $btn-radius;
+  cursor: pointer;
+  border: none;
+  background: $color-bg-input;
+  color: $color-text-secondary;
+  transition: background .28s ease, border-color .28s ease;
+  min-height: $input-height;
+  padding: 0 10px;
+  box-sizing: border-box;
+
+  &:hover {
+    background: $color-bg-active;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $border-color-focus;
+    outline-offset: 1px;
+  }
+}
+
+// Icon Button component
+.icon-btn {
+  min-width: 40px;
+  height: $input-height;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 18px !important;
+
+  svg {
+    width: 1.15em;
+    height: 1.15em;
+    display: inline-block;
+    vertical-align: middle;
+    fill: currentColor;
+    pointer-events: none;
+  }
+
+  &:disabled {
+    opacity: .38;
+    cursor: default;
+  }
+}
+
+// Text labels and badges
+.compact-label {
+  color: $color-text-subtle;
+  font-size: 13px !important;
+}
+
+// Global Checkbox Switches
+// Checkboxes render as mobile/touch-friendly switch toggles across the application
+input[type='checkbox'] {
+  cursor: pointer;
+  margin: 0;
+  position: relative;
+  width: 46px;
+  height: 26px;
+  border-radius: 13px;
+  outline: none;
+  background-color: $color-bg-input;
+  border: 1px solid $border-color-default;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: background .3s, border-color .3s;
+  min-height: unset;
+  display: inline-block;
+  vertical-align: middle;
+  box-sizing: border-box;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    height: 18px;
+    width: 18px;
+    background-color: $color-text-primary;
+    transition: left .3s;
+  }
+
+  &:checked {
+    background-color: $color-stage-direction-active-bg;
+    border-color: $color-stage-direction-active-bg;
+
+    &::after {
+      left: calc(100% - 12px);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid $border-color-focus;
+    outline-offset: 2px;
+  }
+}

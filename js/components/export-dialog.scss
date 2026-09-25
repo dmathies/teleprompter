@@ -25,7 +25,7 @@
   border: 1px solid $border-color-panel;
   border-radius: $panel-radius;
   background: $color-bg-panel;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.78);
+  box-shadow: $panel-box-shadow;
   color: $color-text-primary;
   font-size: 16px;
 
