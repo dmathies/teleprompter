@@ -1,31 +1,9 @@
-@use "../../css/variables" as *;
+@use "/css/variables" as *;
 
 .sync-control {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-#deptLabel,
-#deptSelect {
-  font-weight: 700;
-  color: $color-text-secondary;
-}
-
-#deptSelect {
-  height: 38px;
-  padding: 0 6px;
-  font-size: 14px;
-  box-sizing: border-box;
-  background: $color-bg-input;
-  border: 1px solid $border-color-default;
-  border-radius: 4px;
-  cursor: pointer;
-  outline: none;
-
-  &:focus {
-    border-color: $border-color-focus;
-  }
 }
 
 #addCueBtn[hidden],

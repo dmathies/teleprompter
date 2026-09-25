@@ -1,4 +1,4 @@
-@use "../../css/variables" as *;
+@use "/css/variables" as *;
 
 #cueEditorPanel {
   position: fixed;
@@ -30,10 +30,6 @@
     gap: 8px;
     align-items: center;
     margin: 8px 0;
-
-    &.buttons {
-      align-items: flex-start;
-    }
   }
 
   label {
@@ -44,11 +40,6 @@
   input[type="text"] {
     flex: 1;
     min-width: 0;
-    background: $color-bg-input;
-    color: $color-text-primary;
-    border: 1px solid $border-color-default;
-    border-radius: 4px;
-    padding: 7px 8px;
     font-size: 16px;
   }
 

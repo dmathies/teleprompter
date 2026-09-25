@@ -2,7 +2,18 @@ import { contrastingTextColor } from "./utils.js";
 import { normalizeSemanticPosition } from "./semantic-position.js";
 
 export function createPdfExporter(deps) {
-  const { exportDialog, exportStatus, exportDepartment, exportPanel, exportBackdrop, exportCues, exportAnnotations, exportStageDirections, exportOpenBtn, ALLOWED_DEPARTMENTS, CUE_API_ENDPOINT, ANNOTATION_API_ENDPOINT, SETTINGS_API_ENDPOINT, SCRIPT_GET_ENDPOINT, normalizeDepartmentMargin, departmentDefaultColor, getCurrentScriptId, getActiveDepartment, getAvailableScripts } = deps;
+  const { exportDialog, exportStatus, exportDepartment, exportPanel, exportBackdrop, exportCues, exportAnnotations, exportStageDirections, exportOpenBtn, ALLOWED_DEPARTMENTS, getAllowedDepartments, CUE_API_ENDPOINT, ANNOTATION_API_ENDPOINT, SETTINGS_API_ENDPOINT, SCRIPT_GET_ENDPOINT, normalizeDepartmentMargin, departmentDefaultColor, getCurrentScriptId, getActiveDepartment, getAvailableScripts } = deps;
+
+  const resolveAllowedDepartments = () => {
+    if (typeof getAllowedDepartments === 'function') {
+      const depts = getAllowedDepartments();
+      if (Array.isArray(depts) && depts.length > 0) return depts;
+    }
+    if (Array.isArray(ALLOWED_DEPARTMENTS) && ALLOWED_DEPARTMENTS.length > 0) {
+      return ALLOWED_DEPARTMENTS;
+    }
+    return ['FS', 'LX', 'SND', 'STG'];
+  };
 
   function openExportPanel() {
         if (!getCurrentScriptId()) return;
@@ -281,25 +292,69 @@ export function createPdfExporter(deps) {
       function addExportCueRangeSegments(root, departmentDocs) {
         const ordered = Array.from(root.querySelectorAll('[data-prompt-id]'));
         const index = new Map(ordered.map((b,i) => [b.dataset.promptId,i]));
-        let rangeOrdinal = 0;
+
+        // Collect all valid cue ranges with their start/end indices and fractional positions
+        const ranges = [];
         for (const doc of departmentDocs) {
           for (const cue of doc.cues) {
             if (!cue || !cue.anchor || !cue.anchor.prompt || !cue.endAnchor || !cue.endAnchor.prompt) continue;
             const startIndex = index.get(cue.anchor.prompt), endIndex = index.get(cue.endAnchor.prompt);
             if (!Number.isInteger(startIndex) || !Number.isInteger(endIndex) || endIndex < startIndex) continue;
-            const color = cue.color || departmentDefaultColor(doc.department);
-            const offset = (rangeOrdinal++ % 4) * 3;
-            for (let i=startIndex;i<=endIndex;i++) {
-              const block=ordered[i];
-              if (!block || block.classList.contains('print-stage-hidden')) continue;
-              const segment=root.ownerDocument.createElement('div');
-              segment.className='print-cue-range';
-              segment.style.setProperty('--cue-color',color);
-              segment.style.left=offset+'px';
-              if (i===startIndex) segment.style.top=((normalizeSemanticPosition(cue.anchor,{defaultFraction:0})?.fraction || 0)*100)+'%';
-              if (i===endIndex) segment.style.bottom=((1-(normalizeSemanticPosition(cue.endAnchor,{defaultFraction:0})?.fraction || 0))*100)+'%';
-              block.appendChild(segment);
+            const startFrac = normalizeSemanticPosition(cue.anchor, {defaultFraction:0})?.fraction || 0;
+            const endFrac = normalizeSemanticPosition(cue.endAnchor, {defaultFraction:0})?.fraction || 0;
+            ranges.push({
+              cue,
+              department: doc.department,
+              color: cue.color || departmentDefaultColor(doc.department),
+              startIndex,
+              endIndex,
+              startFrac,
+              endFrac,
+              startKey: startIndex + startFrac,
+              endKey: endIndex + endFrac
+            });
+          }
+        }
+
+        // Sort by start position
+        ranges.sort((a, b) => a.startKey - b.startKey || a.endKey - b.endKey);
+
+        // Assign lanes (offsets) so only overlapping cue ranges are staggered
+        const activeIntervals = []; // Array of endKeys in lane i
+        for (const r of ranges) {
+          let assignedLane = -1;
+          for (let l = 0; l < activeIntervals.length; l++) {
+            if (activeIntervals[l] <= r.startKey) {
+              assignedLane = l;
+              activeIntervals[l] = r.endKey;
+              break;
             }
+          }
+          if (assignedLane === -1) {
+            assignedLane = activeIntervals.length;
+            activeIntervals.push(r.endKey);
+          }
+          r.lane = assignedLane;
+        }
+
+        for (const r of ranges) {
+          const offset = r.lane * 3.5; // Stagger only when concurrent
+          for (let i = r.startIndex; i <= r.endIndex; i++) {
+            const block = ordered[i];
+            if (!block || block.classList.contains('print-stage-hidden')) continue;
+            const segment = root.ownerDocument.createElement('div');
+            segment.className = 'print-cue-range';
+            segment.style.setProperty('--cue-color', r.color);
+            segment.style.left = 'calc(0px - var(--print-ann-left, 0%) + ' + offset + 'px)';
+            if (i === r.startIndex) {
+              segment.style.top = (r.startFrac * 100) + '%';
+            }
+            if (i !== r.endIndex) {
+              // Bridge the vertical gap caused by block margin-bottom (.cue { margin: 0 0 .55em; })
+              // so cue range lines remain unbroken between adjacent prompt blocks.
+              segment.style.bottom = 'calc(0px - .55em)';
+            }
+            block.appendChild(segment);
           }
         }
       }
@@ -317,7 +372,13 @@ export function createPdfExporter(deps) {
           .print-sheet:last-child { break-after:auto; page-break-after:auto; }
           .print-page-body { height:270mm; overflow:hidden; font-size:11.5pt; line-height:1.35; }
           .print-footer { position:absolute; left:14mm; right:14mm; bottom:6mm; text-align:center; font:10pt Georgia,serif; color:#333; }
-          .print-page-body > [data-prompt-id], #exportSource > [data-prompt-id] { position:relative; padding-left:var(--print-ann-left,0); padding-right:var(--print-ann-right,0); break-inside:avoid; page-break-inside:avoid; }
+          .print-page-body > [data-prompt-id], #exportSource > [data-prompt-id] {
+            position: relative;
+            padding-left: calc(14mm + var(--print-ann-left, 0%));
+            padding-right: var(--print-ann-right, 0%);
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
           .cue { margin:0 0 .55em; }
           .character,.lyrics-speaker { font-weight:700; }
           .lyrics-block { margin:.15em 0 .4em; }
@@ -325,16 +386,48 @@ export function createPdfExporter(deps) {
           .lyrics { margin-left:.7em; }
           .act-heading { text-align:center; margin:1em 0 .7em; font-size:1.18em; }
           .scene-heading,.song-heading { text-align:center; margin:.8em 0 .5em; font-size:1.08em; }
-          .stage-direction { color:#555; font-style:italic; font-size:.86em; line-height:1.25; margin:.3em 1.2em .5em; }
+          .stage-direction { color:#555; font-style:italic; font-size:.86em; line-height:1.25; margin:.3em 0 .5em; padding-right:1.2em; text-indent:1.2em; }
           .stage-inline { color:#555; font-style:italic; font-size:.9em; }
           .print-stage-hidden { display:none !important; }
           .two-column-lyrics { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:7mm; align-items:start; }
-          .print-cue-markers { display:flex; flex-wrap:wrap; gap:2mm; margin:0 0 2mm; padding-left:3mm; }
-          .print-cue-marker { display:flex; gap:2mm; align-items:baseline; padding:1.1mm 2mm; border-radius:1mm; background:var(--cue-color); color:var(--cue-text-color); font-size:8.5pt; line-height:1.15; }
-          .print-cue-marker strong { white-space:nowrap; }
-          .print-cue-end { margin:1.5mm 0 1mm 3mm; padding-left:2mm; border-left:2px solid var(--cue-color); color:#555; font:bold 8pt Arial,sans-serif; }
+          .print-cue-markers {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5mm;
+            margin: 0 0 2.5mm calc(0px - 14mm - var(--print-ann-left, 0%));
+            width: calc(100% + 14mm + var(--print-ann-left, 0%));
+          }
+          .print-cue-marker {
+            display: flex;
+            gap: 2mm;
+            align-items: baseline;
+            padding: 1.2mm 2.5mm;
+            border-left: 3.5mm solid var(--cue-color);
+            border-radius: 0 1.5mm 1.5mm 0;
+            background: var(--cue-color);
+            color: var(--cue-text-color);
+            font-size: 8.5pt;
+            line-height: 1.15;
+            box-sizing: border-box;
+          }
+          .print-cue-marker strong { white-space: nowrap; }
+          .print-cue-end {
+            margin: 1.5mm 0 1mm calc(0px - 14mm - var(--print-ann-left, 0%));
+            padding-left: 2.5mm;
+            border-left: 3.5mm solid var(--cue-color);
+            color: #555;
+            font: bold 8pt Arial, sans-serif;
+          }
           .print-trigger { padding:0 .08em; background:color-mix(in srgb,var(--cue-color) 70%,transparent); border-left:2px solid var(--cue-color); box-decoration-break:clone; -webkit-box-decoration-break:clone; }
-          .print-cue-range { position:absolute; top:0; bottom:0; width:2px; background:var(--cue-color); z-index:3; pointer-events:none; }
+          .print-cue-range {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2.5px;
+            background: var(--cue-color);
+            z-index: 3;
+            pointer-events: none;
+          }
           .print-annotation-layer { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; z-index:4; }
           .print-annotation-layer path,.print-annotation-layer line,.print-annotation-layer ellipse,.print-annotation-layer polygon { vector-effect:non-scaling-stroke; stroke-linecap:round; stroke-linejoin:round; }
           @media print {
@@ -382,7 +475,7 @@ export function createPdfExporter(deps) {
 
       async function buildPdfExport(printWindow, exportOptions = null) {
         const selected = (exportOptions && exportOptions.department) || (exportDialog && exportDialog.department) || (exportDepartment && exportDepartment.value) || 'ALL';
-        const departments = selected === 'ALL' ? ALLOWED_DEPARTMENTS.slice() : (selected === 'NONE' ? [] : [selected]);
+        const departments = selected === 'ALL' ? resolveAllowedDepartments().slice() : (selected === 'NONE' ? [] : [selected]);
         const includeCues = ((exportOptions && exportOptions.exportCues !== undefined) ? exportOptions.exportCues : (exportDialog ? exportDialog.exportCues : (exportCues && exportCues.checked))) && departments.length > 0;
         const includeAnnotations = ((exportOptions && exportOptions.exportAnnotations !== undefined) ? exportOptions.exportAnnotations : (exportDialog ? exportDialog.exportAnnotations : (exportAnnotations && exportAnnotations.checked))) && departments.length > 0;
         const stageMode = (exportOptions && exportOptions.stageDirections) || (exportDialog && exportDialog.stageDirections) || (exportStageDirections && exportStageDirections.value) || 'all';

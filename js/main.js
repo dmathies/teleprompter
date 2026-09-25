@@ -311,6 +311,7 @@ if (annotationToolbar) annotationToolbar.controller = annotationsController;
 const {openExportPanel, closeExportPanel, startPdfExport} = createPdfExporter({
     exportDialog,
     ALLOWED_DEPARTMENTS: allowedDepartments,
+    getAllowedDepartments: () => (allowedDepartments && allowedDepartments.length ? allowedDepartments : (getDepartments().length ? getDepartments() : ['FS', 'LX', 'SND', 'STG'])),
     CUE_API_ENDPOINT,
     ANNOTATION_API_ENDPOINT,
     SETTINGS_API_ENDPOINT,
