@@ -1,0 +1,29 @@
+#annotationReviewDialog {
+  box-sizing: border-box;
+  max-width: 48rem;
+  width: calc(100% - 2rem);
+  max-height: 85dvh;
+  overflow: auto;
+  color: #eee;
+  background: #242424;
+  border: 1px solid #888;
+  border-radius: .5rem;
+  padding: 1rem;
+  &::backdrop { background: #000a; }
+  section { border-top: 1px solid #666; padding: .5rem 0; }
+  input { box-sizing: border-box; max-width: 100%; width: 100%; padding: .5rem; }
+  button { margin: .4rem; padding: .6rem; }
+  blockquote { margin: .5rem; white-space: pre-wrap; }
+}
+
+#annotationRevisionNotice {
+  position: fixed;
+  bottom: .5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  max-width: 95vw;
+  padding: .5rem;
+  background: #ffe18a;
+  color: #171717;
+}

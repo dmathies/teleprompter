@@ -1,4 +1,5 @@
 import {extractActLabel} from "./context-header.js";
+import {cueWordOffset} from './cue-text.js';
 
 export function createOverviewRail({
     overviewRail,
@@ -153,7 +154,7 @@ export function createOverviewRail({
             const color = cue.color || defaultColor;
             addMark(
                 "cue",
-                block.offsetTop,
+                block.offsetTop + (cueWordOffset(block, cue) ?? 0),
                 color,
                 (activeDepartment || "") + " " + (cue.number || "")
             );

@@ -6,7 +6,7 @@ return [
   ],
   'hansel_gretel' => [
     'name' => 'Hansel & Gretel',
-    'file' => __DIR__ . '/../show-scripts/hansel_gretel_script.html',
+    'file' => __DIR__ . '/../show-scripts/hansel_gretel_script_sep2026.html',
   ],
   'pirates_test' => [
     'name' => 'Pirates of Penzance (Test)',

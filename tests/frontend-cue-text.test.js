@@ -102,7 +102,7 @@ if (typeof globalThis.document === 'undefined') {
   };
 }
 
-import { cueTextNodes, cueWordEntries, wrapCueTriggerWord } from '../js/cue-text.js';
+import { cueTextNodes, cueWordEntries, wrapCueTriggerWord, cueWordOffset, alignCueRows } from '../js/cue-text.js';
 
 describe('Frontend Cue Text & Trigger Wrapping (js/cue-text.js)', () => {
   function createSampleBlock() {
@@ -207,5 +207,52 @@ describe('Frontend Cue Text & Trigger Wrapping (js/cue-text.js)', () => {
     assert.equal(wrapCueTriggerWord(block, { anchor: { type: 'word', wordIndex: -1 } }, '#ffd000'), null);
     assert.equal(wrapCueTriggerWord(block, { anchor: { type: 'word', wordIndex: 999 } }, '#ffd000'), null);
     assert.equal(wrapCueTriggerWord(block, null, '#ffd000'), null);
+  });
+
+  test('word cue position uses its rendered line within a long semantic block', () => {
+    const {block} = createSampleBlock();
+    block.getBoundingClientRect = () => ({top: 100});
+    const trigger = new MockElement('span', block);
+    trigger.dataset.wordIndex = '6';
+    trigger.getBoundingClientRect = () => ({top: 940, height: 42});
+    block.children.push(trigger);
+    const cue = {anchor: {type: 'word', wordIndex: 6}};
+    assert.equal(cueWordOffset(block, cue), 861);
+    // Responsive reflow changes the location without changing the saved cue.
+    trigger.getBoundingClientRect = () => ({top: 1500, height: 64});
+    assert.equal(cueWordOffset(block, cue), 1432);
+    assert.equal(cueWordOffset(block, {anchor: {type: 'word', wordIndex: 99}}), null);
+    assert.equal(cueWordOffset(block, {anchor: {type: 'paragraph'}}), null);
+  });
+
+  test('stage cue alignment removes text indentation without accumulating on reflow', t => {
+    const originalStyle = globalThis.getComputedStyle;
+    globalThis.getComputedStyle = () => ({paddingLeft:'4px',paddingRight:'4px',borderLeftWidth:'0px'});
+    t.after(() => { globalThis.getComputedStyle = originalStyle; });
+    const holder = {style:{}, closest: selector => selector.includes('stage-direction') ? {} : null,
+      getClientRects: () => [{}], getBoundingClientRect() {return {left:80+(parseFloat(this.style.marginLeft)||0)};} };
+    const normal = {style:{},closest:()=>null};
+    const root = {clientWidth:800,getBoundingClientRect:()=>({left:10}),querySelectorAll:()=>[holder,normal]};
+    alignCueRows(root, 'cue-markers', true);
+    assert.equal(holder.style.width, '792px');
+    assert.equal(holder.getBoundingClientRect().left, 14);
+    alignCueRows(root, 'cue-markers', true);
+    assert.equal(holder.getBoundingClientRect().left, 14);
+    root.clientWidth = 390;
+    alignCueRows(root, 'cue-markers', true);
+    assert.equal(holder.style.width, '382px');
+    assert.deepEqual(normal.style, {});
+  });
+
+  test('stage cues within paired lyrics stay inside their own singer column', t => {
+    const originalStyle = globalThis.getComputedStyle;
+    globalThis.getComputedStyle = () => ({paddingLeft:'12px',paddingRight:'8px',borderLeftWidth:'2px'});
+    t.after(() => { globalThis.getComputedStyle = originalStyle; });
+    const column = {clientWidth:300,getBoundingClientRect:()=>({left:400})};
+    const holder = {style:{},closest:selector=>selector==='.lyrics-column'?column:{},getClientRects:()=>[{}],
+      getBoundingClientRect(){return {left:460+(parseFloat(this.style.marginLeft)||0)}}};
+    alignCueRows({querySelectorAll:()=>[holder]}, 'cue-markers', true);
+    assert.equal(holder.style.width, '280px');
+    assert.equal(holder.getBoundingClientRect().left, 414);
   });
 });

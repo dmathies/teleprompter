@@ -42,6 +42,11 @@ that exist only in IndexedDB or the offline mutation queue must synchronize
 before export. If any selected department document cannot be loaded, export
 stops instead of silently producing an incomplete marked-up script.
 
+Revision-aware annotations must match the fetched script's content hash.
+Export also stops when any selected department has unresolved placements;
+the editor can review them or the user can export with annotations disabled.
+Export does not migrate or snapshot data.
+
 ## Pagination
 
 Only top-level elements with `data-prompt-id` are copied from the script
@@ -64,7 +69,9 @@ explicit corresponding export change when print output should match.
 ## Markup rendering
 
 Selected cues are recreated as department-coloured badges. Word triggers are
-highlighted, cue ranges use their fractional start/end positions, and an END
+highlighted with their badges immediately before the trigger word, including
+within long dialogue blocks. Word-cue range starts use the rendered word
+position; other range anchors retain their fractional positions. An END
 label is attached to the end block.
 
 Annotations are re-rendered as SVG after pagination so their geometry uses the

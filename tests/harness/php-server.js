@@ -2,6 +2,9 @@ import http from 'node:http';
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 function findPhpBinary() {
   if (process.env.PHP_BIN) return process.env.PHP_BIN;
@@ -30,7 +33,8 @@ export class PhpTestServer {
     this.port = options.port || 4899;
     this.workerCount = options.workerCount || 4;
     this.phpBin = options.phpBin || findPhpBinary();
-    this.rootDir = options.rootDir || process.cwd();
+    this.sourceDir = options.rootDir || fileURLToPath(new URL('../../', import.meta.url));
+    this.rootDir = null;
     this.workers = [];
     this.proxy = null;
     this.baseUrl = `http://${this.host}:${this.port}`;
@@ -62,6 +66,29 @@ export class PhpTestServer {
       });
     });
 
+    // Serve a disposable copy: never read real credentials or mutate show data.
+    this.rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'teleprompter-test-'));
+    fs.cpSync(path.join(this.sourceDir, 'scripts'), path.join(this.rootDir, 'scripts'), {
+      recursive: true,
+      filter: (source) => {
+        const relative = path.relative(path.join(this.sourceDir, 'scripts'), source);
+        return relative !== 'passwords.php' &&
+          relative.split(path.sep)[0] !== 'teleprompter_state';
+      },
+    });
+    fs.copyFileSync(path.join(this.sourceDir, 'scripts/passwords.example.php'),
+      path.join(this.rootDir, 'scripts/passwords.php'));
+    // These suites exercise role authentication. Disabling the show gate in
+    // this fixture makes Linux and Windows requests identical.
+    const passwordsPath = path.join(this.rootDir, 'scripts/passwords.php');
+    fs.writeFileSync(passwordsPath, fs.readFileSync(passwordsPath, 'utf8')
+      .replace("'CHANGE-ME-SHOW'", "''"));
+    for (const directory of ['show-scripts', 'show-cues', 'show-annotations']) {
+      fs.mkdirSync(path.join(this.rootDir, directory));
+    }
+    fs.copyFileSync(path.join(this.sourceDir, 'show-scripts/pirates_test_script.html'),
+      path.join(this.rootDir, 'show-scripts/pirates_test_script.html'));
+
     if (!isWin) {
       const php = spawn(this.phpBin, ['-S', `${this.host}:${this.port}`, '-t', this.rootDir], {
         stdio: ['ignore', 'ignore', 'ignore'],
@@ -91,9 +118,6 @@ export class PhpTestServer {
         target.activeRequests++;
 
         const reqHeaders = { ...req.headers };
-        if (!reqHeaders['x-show-key'] && !reqHeaders['cookie']) {
-          reqHeaders['x-show-key'] = 'CHANGE-ME-SHOW';
-        }
 
         const proxyReq = http.request({
           hostname: '127.0.0.1',
@@ -174,7 +198,11 @@ export class PhpTestServer {
       if (w.process && !w.process.killed && w.process.pid) {
         try {
           if (process.platform === 'win32') {
-            spawn('taskkill', ['/pid', w.process.pid.toString(), '/f', '/t']);
+            await new Promise((resolve) => {
+              const kill = spawn('taskkill', ['/pid', w.process.pid.toString(), '/f', '/t']);
+              kill.on('error', resolve);
+              kill.on('exit', resolve);
+            });
           } else {
             w.process.kill('SIGKILL');
           }
@@ -182,5 +210,9 @@ export class PhpTestServer {
       }
     }
     this.workers = [];
+    if (this.rootDir) {
+      fs.rmSync(this.rootDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      this.rootDir = null;
+    }
   }
 }

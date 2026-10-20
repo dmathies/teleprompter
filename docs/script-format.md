@@ -36,6 +36,14 @@ Prompt IDs currently use `p` followed by six digits. Never renumber existing
 IDs merely because content is inserted or reformatted: saved master positions,
 cues, and annotations all refer to them.
 
+New annotations record a script-content hash and surrounding block text.
+Authenticated saves (and authenticated editor loads) capture private source
+snapshots for future review. Before revising a production script with legacy
+annotations, use the annotation toolbar's Review action to confirm their
+current positions and capture a baseline. Earlier source text cannot be
+recovered if it was overwritten before being captured. See
+`annotations.md#script-revisions-and-position-review` for migration limits.
+
 Useful semantic metadata includes:
 
 - `data-page`: source page label; print export starts a new A4 sheet when this
@@ -76,3 +84,37 @@ on narrow screens; current fragments use a 700-pixel breakpoint.
   own fixed stylesheet and understands the recognized structures listed above.
 - Test with stage directions both hidden and shown, multiple font sizes, and
   desktop/phone/tablet widths.
+
+## Song paragraph positions
+
+Each verse/chorus and singer change should start a separate top-level semantic
+block. For simultaneous paired singing, use one top-level `.two-column-lyrics`
+block per corresponding verse/chorus pair, with two `.lyrics-column` children.
+Keep an empty partner column when only one singer continues. Do not add nested
+prompt IDs inside the columns: synchronization and print rely on top-level
+semantic blocks. A word cue can still target either singer within the pair.
+
+For an existing deployed fragment, the offline converter can preview the split:
+
+```sh
+php dev_scripts/split-song-paragraphs.php --script=hansel_gretel
+```
+
+It recognizes blank-line stanza separators, explicit lyric paragraphs, and
+repeated `.lyrics-speaker` headings. It preserves each original ID on the first
+section and allocates later IDs above the script's current maximum. It does not
+guess unmarked musical sections or split ordinary dialogue. Running it again
+leaves converted content unchanged.
+
+Add `--write` to apply the conversion to an **offline working copy**. The tool
+retains original HTML, affected cue/annotation JSON, and the ID mapping beneath
+the private `scripts/teleprompter_state/script_revisions/` directory. Word cues
+are remapped by their original text-node tokens and checked against their stored
+trigger text. Existing block-start paragraph cues stay at the section start.
+Interior fractional end anchors require explicit placement before conversion;
+the tool refuses to guess. Annotations on split blocks are retained unresolved
+for the department's Review workflow.
+
+Deploy the converted fragment and any remapped department data together outside
+an active performance, then reload all clients. Do not commit production script
+content, live department data, or conversion backups to Git.

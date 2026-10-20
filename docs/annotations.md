@@ -103,6 +103,64 @@ central margin. Export fetches the current server document directly; annotations
 that exist only in IndexedDB or the offline mutation queue are not included
 until they have synchronized successfully. See `export.md`.
 
+## Script revisions and position review
+
+New annotations retain a SHA-256 source revision and an anchor captured from
+the pristine script fragment: block text, neighbouring text, speaker, act,
+scene, index, and block structure. Original drawing coordinates and pressure
+data remain unchanged. `get_script.php` returns the exact content hash in
+`X-Script-Revision`; script revision and department document revision are
+independent.
+
+An authenticated save captures an immutable copy of that script under
+`scripts/teleprompter_state/script_revisions/<script>/<hash>.html`. Snapshots
+are ignored, excluded from build output, and covered by the existing direct
+web-access prohibition for `teleprompter_state`. Hosting must preserve and back
+up this directory along with annotation JSON. Read-only followers and export
+never create snapshots. Existing snapshots can be read through the authenticated
+annotation `snapshot` action, not through a direct file URL.
+
+After replacing a deployed script, reload clients at a safe point. There is
+no automatic live DOM replacement. Revisioned drawings from another source
+revision are withheld from the overlay and counted in a review notice, even
+when their old prompt IDs happen to exist. Older drawings without captured
+context retain their existing behaviour until explicitly reviewed; their
+original text cannot be inferred retrospectively.
+
+An authenticated department editor opens **Review** in the annotation toolbar
+(or the review notice). The comparison is initially read-only. Unchanged text,
+speaker, HTML structure, and embedded styles may produce a suggested block.
+Repeated lines, changed content/layout, and strokes extending beyond their
+first line require explicit placement. Whole-script text and word similarity
+provide manual suggestions for split, merged, or edited passages. Enter or
+choose a target block ID to inspect its text, or leave the position blank to
+retain an unresolved record. **Apply reviewed positions** commits the whole
+department result under a lock, checks the expected document revision, retains
+the previous annotations in private history, and announces the new revision
+over the existing SSE mechanism. No other department is modified.
+
+The last migration can be undone when there have been no subsequent mutations.
+Otherwise rollback is refused to protect later drawings and deletions. Recovery
+data can be downloaded from the review dialog. Restoring an old placement does
+not make an old-revision drawing safe to display on a different current source;
+it may need another explicit placement review.
+
+Offline operations retain their source revision and mutation ID. Stale saves
+remain queued with a conflict message, rather than overwriting migrated
+anchors. Review offers pending drawings first and requires explicit confirmation
+of pending deletions. A successful save updates the baseline of the next local
+operation on that drawing; concurrent remote edits return a conflict. Recent
+mutation IDs are retained for retry deduplication. Older clients cannot strip
+revision metadata from an already revisioned drawing.
+
+Print export checks the script hash against the department response and stops
+if revisioned/unresolved drawings cannot be placed safely. Export without
+annotations remains available. Word-following circles, geometric warping,
+automatic cross-department publication, and a script-upload/staging workflow
+are not part of this conservative first release. Existing external deployment
+continues to control the active script file; placement changes require explicit
+department-editor review.
+
 ## Change rules
 
 - Preserve IDs and semantic anchors across schema migrations.

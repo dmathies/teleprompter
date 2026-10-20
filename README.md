@@ -76,3 +76,11 @@ retains only directory placeholders and sanitized/public test content.
 Before running authenticated endpoints, copy
 `scripts/passwords.example.php` to the ignored `scripts/passwords.php`, replace
 every placeholder, and provision that file separately in production.
+
+Run automated tests with `npm test`. The API tests start their own local PHP
+servers; PHP must be on PATH or selected with the `PHP_BIN` environment variable.
+Each server uses a disposable temporary directory with example role credentials,
+the public-domain Pirates fixture, and empty runtime data. Tests do not require
+or modify your local `scripts/passwords.php`, cues, annotations, or master state.
+The show-access gate is disabled only in the temporary test configuration;
+master and department authentication remain enabled.

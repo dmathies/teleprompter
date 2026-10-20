@@ -1,4 +1,4 @@
-import {cueWordEntries, wrapCueTriggerWord as wrapCueTriggerWordElement} from "./cue-text.js";
+import {cueWordEntries, cueMarkerHolder, cueWordOffset, alignCueRows, wrapCueTriggerWord as wrapCueTriggerWordElement} from "./cue-text.js";
 import {contrastingTextColor} from "./utils.js";
 
 export function createCuesManager({
@@ -56,8 +56,7 @@ export function createCuesManager({
             block.classList.remove("prompt-with-cues");
             block.style.removeProperty("--cue-border");
 
-            const markers = block.querySelector(":scope > .cue-markers");
-            if (markers) markers.remove();
+            for (const markers of block.querySelectorAll('.cue-markers')) markers.remove();
 
             const connector = block.querySelector(":scope > .cue-connector-layer");
             if (connector) connector.remove();
@@ -77,6 +76,9 @@ export function createCuesManager({
     }
 
     function drawCueConnectors() {
+        const scriptFont = parseFloat(getComputedStyle(content).fontSize) || 42;
+        content.style.setProperty('--cue-font-size', scriptFont * .42 + 'px');
+        alignCueRows(content, 'cue-markers', true);
         for (const block of content.querySelectorAll(".prompt-with-cues")) {
             const old = block.querySelector(":scope > .cue-connector-layer");
             if (old) old.remove();
@@ -123,7 +125,9 @@ export function createCuesManager({
 
         for (const cue of loadedCues) {
             if (!cue || !cue.anchor || !cue.anchor.prompt || !cue.endAnchor || !cue.endAnchor.prompt) continue;
-            const startY = semanticDocumentY(cue.anchor);
+            const startBlock = content.querySelector('[data-prompt-id="' + CSS.escape(cue.anchor.prompt) + '"]');
+            const wordOffset = startBlock && cueWordOffset(startBlock, cue);
+            const startY = wordOffset !== null && startBlock ? startBlock.offsetTop + wordOffset : semanticDocumentY(cue.anchor);
             const endY = semanticDocumentY(cue.endAnchor);
             if (startY === null || endY === null || endY <= startY) continue;
 
@@ -163,9 +167,6 @@ export function createCuesManager({
 
             block.classList.add("prompt-with-cues");
 
-            const holder = document.createElement("div");
-            holder.className = "cue-markers";
-
             for (const cue of cues) {
                 const cueColorValue = cue.color || departmentDefaultColor();
                 const badge = document.createElement("span");
@@ -185,8 +186,9 @@ export function createCuesManager({
                     badge.appendChild(desc);
                 }
 
+                let trigger = null;
                 if (cue.anchor && cue.anchor.type === "word") {
-                    const trigger = wrapCueTriggerWord(block, cue);
+                    trigger = wrapCueTriggerWord(block, cue);
                     if (trigger) {
                         badge.dataset.triggerWordIndex = String(cue.anchor.wordIndex);
                         trigger.style.setProperty("--cue-color", cueColorValue);
@@ -205,10 +207,8 @@ export function createCuesManager({
                     });
                 }
 
-                holder.appendChild(badge);
+                cueMarkerHolder(block, trigger).appendChild(badge);
             }
-
-            block.insertBefore(holder, block.firstChild);
         }
 
         for (const cue of loadedCues) {
@@ -583,10 +583,7 @@ export function createCuesManager({
         const current = findSemanticPosition();
         if (!current) return;
 
-        const cachedPromptBlocks = getCachedPromptBlocks();
-        const currentBlockIndex = cachedPromptBlocks.findIndex(
-            b => b.dataset.promptId === current.prompt
-        );
+        const currentY = semanticDocumentY(current);
 
         const sorted = loadedCues
             .filter(c => c && c.anchor && c.anchor.prompt)
@@ -597,7 +594,11 @@ export function createCuesManager({
                 return pa[0] - pb[0] || pa[1] - pb[1];
             });
 
-        let next = sorted.find(c => cueSortPosition(c)[0] > currentBlockIndex);
+        const cueY = cue => {
+            const block = content.querySelector('[data-prompt-id="' + CSS.escape(cue.anchor.prompt) + '"]');
+            return block ? block.offsetTop + (cueWordOffset(block, cue) ?? 0) : null;
+        };
+        let next = sorted.find(c => cueY(c) !== null && currentY !== null && cueY(c) > currentY + 1);
 
         // If already within the same prompt, a later word-level cue also counts.
         if (!next) {
@@ -614,7 +615,7 @@ export function createCuesManager({
         if (!block) return;
 
         const target =
-            block.offsetTop -
+            (cueY(next) ?? block.offsetTop) -
             viewport.clientHeight * 0.35;
 
         setScrollPos(Math.max(0, Math.min(maxScrollTop(), target)));
@@ -708,6 +709,7 @@ export function createCuesManager({
 
     // Trigger word pick pointerdown handler
     document.addEventListener("pointerdown", (e) => {
+        if (document.querySelector('#annotationReviewDialog[open]')) return;
         if (!cueWordPickActive) return;
         const settingsDialog = document.querySelector("settings-dialog");
         if (settingsDialog?.open &&

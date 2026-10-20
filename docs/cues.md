@@ -64,11 +64,28 @@ end of a cue range. The start and end selection lines follow the teleprompter's
 
 ## Rendering
 
-Cue badges appear before their anchor block. Word anchors highlight their
-trigger word and draw a connector from the badge. A cue with an end anchor also
+Cue badges for paragraph anchors appear before their anchor block. Word-cue
+badges occupy a full row immediately before the selected trigger word, even
+inside a long dialogue block. Cues sharing a word share a badge holder. The
+word remains highlighted with a short connector from its badge. The rail mark,
+range start, and Next cue navigation use the word's rendered position so they
+follow font-size and responsive reflow. Missing word targets retain the
+block-start badge fallback. Script prompt IDs and stored cue anchors do not
+change. Print output uses the same placement rule.
+
+A cue with an end anchor also
 draws a full-height range line, an exact-position dashed end marker, and start
 and end marks in the overview rail. Cue graphics span configured annotation
 margins; only script text is indented.
+
+For paired lyrics, a cue at the start of the whole section spans both grid
+columns. A word cue within a singer's column stays inside that column. The same
+rules apply to the single-column phone layout and print output.
+
+Cue badges use the script's cue font size and upright, unindented typography,
+independent of stage-direction styling. A cue inside a stage direction aligns
+with the normal cue edge, or with its own singer column in paired lyrics.
+Stage-direction text keeps its original typography and indentation.
 
 Stage-direction blocks directly used as cue start or end anchors remain visible
 even when ordinary stage directions are hidden.

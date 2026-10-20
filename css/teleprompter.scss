@@ -173,6 +173,10 @@ body.overview-rail-left #viewport {
   margin-bottom: .1em;
 }
 
+#content > [data-song-section]:not([data-song-section="1"]) {
+  margin-top: .65em;
+}
+
 .lyrics-speaker {
   color: $color-character;
   font-weight: bold;
@@ -234,11 +238,24 @@ body.overview-rail-left #viewport {
   --script-block-left-inset: calc(var(--annotation-margin-left) + 10px);
 }
 
-#content > [data-prompt-id] > .cue-markers {
+#content > [data-prompt-id] .cue-markers {
   box-sizing: border-box;
   width: calc(100% + var(--script-block-left-inset) + var(--script-block-right-inset));
   margin-left: calc(0px - var(--script-block-left-inset));
   margin-right: calc(0px - var(--script-block-right-inset));
+}
+
+// Cue rows must not take a singer's grid cell in paired lyrics.
+.two-column-lyrics > .cue-markers {
+  grid-column: 1 / -1;
+}
+
+// A cue within one singer's lyrics belongs to that column. Extending it by
+// the whole-script annotation margin would cover the neighbouring singer.
+#content .two-column-lyrics .lyrics-column .cue-markers {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .cue-range-line {
@@ -253,7 +270,11 @@ body.overview-rail-left #viewport {
 .cue-markers {
   display: block;
   margin: 0 0 5px 0;
-  font-size: .42em;
+  font-family: $font-family-script;
+  font-size: var(--cue-font-size, 17.64px);
+  font-style: normal;
+  text-indent: 0;
+  text-align: left;
   line-height: 1.15;
   position: relative;
   z-index: $z-cue-markers;

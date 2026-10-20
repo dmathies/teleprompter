@@ -409,6 +409,7 @@ async function loadShowScript(id) {
     if (!r.ok) throw new Error("script load");
     const t = await r.text();
     if (serial !== scriptLoadSerial) return;
+    annotationsController.setScriptContext(t, r.headers.get('X-Script-Revision'));
     content.innerHTML = t;
     overviewRailManager.resetPositionLines();
     currentScriptId = id;

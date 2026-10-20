@@ -9,6 +9,7 @@ show-scripts/*
 # in the repository.
 scripts/passwords.php
 scripts/teleprompter_state/*.json
+scripts/teleprompter_state/script_revisions/
 !scripts/teleprompter_state/.gitkeep
 show-cues/*.json
 !show-cues/.gitkeep

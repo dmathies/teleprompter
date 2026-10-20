@@ -1,5 +1,7 @@
 import { contrastingTextColor } from "./utils.js";
 import { normalizeSemanticPosition } from "./semantic-position.js";
+import { isAnnotationVisible } from './annotation-migration.js';
+import { cueMarkerHolder, cueWordOffset, alignCueRows } from './cue-text.js';
 
 export function createPdfExporter(deps) {
   const { exportDialog, exportStatus, exportDepartment, exportPanel, exportBackdrop, exportCues, exportAnnotations, exportStageDirections, exportOpenBtn, ALLOWED_DEPARTMENTS, getAllowedDepartments, CUE_API_ENDPOINT, ANNOTATION_API_ENDPOINT, SETTINGS_API_ENDPOINT, SCRIPT_GET_ENDPOINT, normalizeDepartmentMargin, departmentDefaultColor, getCurrentScriptId, getActiveDepartment, getAvailableScripts } = deps;
@@ -59,6 +61,7 @@ export function createPdfExporter(deps) {
           department,
           cues: Array.isArray(cueDoc.cues) ? cueDoc.cues : [],
           annotations: Array.isArray(annotationDoc.annotations) ? annotationDoc.annotations : [],
+          currentScriptRevision: annotationDoc.currentScriptRevision,
           margin: normalizeDepartmentMargin(settingsDoc.annotationMargin)
         };
       }
@@ -107,7 +110,7 @@ export function createPdfExporter(deps) {
         const targetIndex = Number(anchor.wordIndex);
         if (!Number.isInteger(targetIndex) || targetIndex < 0) return;
         const existing = block.querySelector('.print-trigger[data-word-index="' + CSS.escape(String(targetIndex)) + '"]');
-        if (existing) return;
+        if (existing) return existing;
         const entry = exportWordEntries(block).find(e => e.index === targetIndex);
         if (!entry) return;
         const range = block.ownerDocument.createRange();
@@ -117,7 +120,7 @@ export function createPdfExporter(deps) {
         span.className = 'print-trigger';
         span.dataset.wordIndex = String(targetIndex);
         span.style.setProperty('--cue-color', cue.color || departmentDefaultColor(department));
-        try { range.surroundContents(span); } catch (_) {}
+        try { range.surroundContents(span); return span; } catch (_) { return null; }
       }
 
       function decorateExportCues(root, departmentDocs, includeCues) {
@@ -128,12 +131,6 @@ export function createPdfExporter(deps) {
             const block = root.querySelector('[data-prompt-id="' + CSS.escape(cue.anchor.prompt) + '"]');
             if (!block) continue;
             block.classList.add('print-has-cue');
-            let holder = block.querySelector(':scope > .print-cue-markers');
-            if (!holder) {
-              holder = root.ownerDocument.createElement('div');
-              holder.className = 'print-cue-markers';
-              block.insertBefore(holder, block.firstChild);
-            }
             const color = cue.color || departmentDefaultColor(doc.department);
             const badge = root.ownerDocument.createElement('div');
             badge.className = 'print-cue-marker';
@@ -147,8 +144,8 @@ export function createPdfExporter(deps) {
               desc.textContent = cue.description;
               badge.appendChild(desc);
             }
-            holder.appendChild(badge);
-            exportWrapTrigger(block, cue, doc.department);
+            const trigger = exportWrapTrigger(block, cue, doc.department);
+            cueMarkerHolder(block, trigger, 'print-cue-markers').appendChild(badge);
 
             if (cue.endAnchor && cue.endAnchor.prompt) {
               const endBlock = root.querySelector('[data-prompt-id="' + CSS.escape(cue.endAnchor.prompt) + '"]');
@@ -299,7 +296,10 @@ export function createPdfExporter(deps) {
             if (!cue || !cue.anchor || !cue.anchor.prompt || !cue.endAnchor || !cue.endAnchor.prompt) continue;
             const startIndex = index.get(cue.anchor.prompt), endIndex = index.get(cue.endAnchor.prompt);
             if (!Number.isInteger(startIndex) || !Number.isInteger(endIndex) || endIndex < startIndex) continue;
-            const startFrac = normalizeSemanticPosition(cue.anchor, {defaultFraction:0})?.fraction || 0;
+            const startBlock = ordered[startIndex];
+            const wordOffset = cueWordOffset(startBlock, cue, 'print-trigger');
+            const startFrac = wordOffset === null ? (normalizeSemanticPosition(cue.anchor, {defaultFraction:0})?.fraction || 0)
+              : Math.max(0, Math.min(1, wordOffset / Math.max(1, startBlock.clientHeight)));
             const endFrac = normalizeSemanticPosition(cue.endAnchor, {defaultFraction:0})?.fraction || 0;
             ranges.push({
               cue,
@@ -381,6 +381,7 @@ export function createPdfExporter(deps) {
           .cue { margin:0 0 .55em; }
           .character,.lyrics-speaker { font-weight:700; }
           .lyrics-block { margin:.15em 0 .4em; }
+          [data-song-section]:not([data-song-section="1"]) { margin-top:.65em; }
           .lyrics-speaker { display:block; text-align:center; margin-bottom:.15em; }
           .lyrics { margin-left:.7em; }
           .act-heading { text-align:center; margin:1em 0 .7em; font-size:1.18em; }
@@ -390,11 +391,22 @@ export function createPdfExporter(deps) {
           .print-stage-hidden { display:none !important; }
           .two-column-lyrics { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:7mm; align-items:start; }
           .print-cue-markers {
+            font-family: Arial, sans-serif;
+            font-style: normal;
+            text-indent: 0;
+            text-align: left;
             display: flex;
             flex-direction: column;
             gap: 1.5mm;
             margin: 0 0 2.5mm calc(0px - 14mm - var(--print-ann-left, 0%));
             width: calc(100% + 14mm + var(--print-ann-left, 0%));
+          }
+          .two-column-lyrics > .print-cue-markers,
+          .two-column-lyrics > .print-cue-end { grid-column: 1 / -1; }
+          .two-column-lyrics .lyrics-column .print-cue-markers {
+            width: 100%;
+            margin-left: 0;
+            margin-right: 0;
           }
           .print-cue-marker {
             display: flex;
@@ -482,7 +494,18 @@ export function createPdfExporter(deps) {
         const scriptResponse = await fetch(SCRIPT_GET_ENDPOINT + '?id=' + encodeURIComponent(getCurrentScriptId()) + '&_=' + Date.now(), {cache:'no-store'});
         if (!scriptResponse.ok) throw new Error('Could not load script for export');
         const scriptHtml = await scriptResponse.text();
+        const scriptRevision = scriptResponse.headers.get('X-Script-Revision');
         const departmentDocs = await Promise.all(departments.map(d => fetchExportDepartmentData(getCurrentScriptId(),d)));
+        if (includeAnnotations) {
+          for (const doc of departmentDocs) {
+            if (doc.currentScriptRevision && doc.currentScriptRevision !== scriptRevision) {
+              throw new Error('Script changed while preparing export. Please try again.');
+            }
+            if (doc.annotations.some(a => !isAnnotationVisible(a, scriptRevision))) {
+              throw new Error('Some annotations need position review. Ask the department editor to review them, or export with annotations disabled.');
+            }
+          }
+        }
 
         const printDoc=printWindow.document;
         printDoc.open();
@@ -497,6 +520,12 @@ export function createPdfExporter(deps) {
         for (const child of Array.from(parsed.querySelector('#exportSource').children)) {
           if (child.matches('[data-prompt-id]')) sourceRoot.appendChild(printDoc.importNode(child,true));
         }
+        if (includeAnnotations) {
+          const prompts = new Set([...sourceRoot.querySelectorAll('[data-prompt-id]')].map(block => block.dataset.promptId));
+          if (departmentDocs.some(doc => doc.annotations.some(ann => !isAnnotationVisible(ann, scriptRevision, prompts)))) {
+            throw new Error('Some annotation blocks are missing from the script. Review positions before exporting annotations.');
+          }
+        }
         sourceRoot.style.position='absolute';
         sourceRoot.style.left='-10000px';
         sourceRoot.style.top='0';
@@ -508,6 +537,7 @@ export function createPdfExporter(deps) {
         decorateExportCues(sourceRoot, departmentDocs, includeCues);
         exportApplyStageDirections(sourceRoot, stageMode, departmentDocs);
         exportApplyAnnotationMargins(sourceRoot, departmentDocs, includeAnnotations);
+        alignCueRows(sourceRoot, 'print-cue-markers');
         paginateExportBlocks(printDoc, sourceRoot);
         sourceRoot.remove();
 

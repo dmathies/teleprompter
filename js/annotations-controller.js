@@ -1,4 +1,7 @@
 import { AnnotationEraser } from "./annotation-eraser.js";
+import { indexScript, captureAnchor } from './annotation-anchors.js';
+import { isAnnotationVisible } from './annotation-migration.js';
+import { reviewAnnotations } from './annotation-review.js';
 
 export function createAnnotationsController({
     content,
@@ -32,6 +35,12 @@ export function createAnnotationsController({
     let penAnnotationPointerId = null;
     let penEraseActive = false;
     let penPaletteAutoVisible = false;
+    let scriptContext = null;
+    let scriptRevision = null;
+    let syncConflict = '';
+    let annotationReviewOpen = false;
+    const capturedRevisions = new Set();
+    let scriptPrompts = null;
 
     function annotationCacheKey(script = getCurrentScriptId(), dept = getActiveDepartment()) {
         return annotationStore.key(script, dept);
@@ -54,7 +63,12 @@ export function createAnnotationsController({
         const online = !!navigator.onLine;
         let stateObj = null;
 
-        if (annotationFlushRunning) {
+        const unresolved = loadedAnnotations.filter(a => !isAnnotationVisible(a, scriptRevision, scriptPrompts)).length;
+        if (syncConflict) {
+            stateObj = { status: 'conflict', message: syncConflict };
+        } else if (unresolved) {
+            stateObj = { status: 'review', pendingCount: unresolved };
+        } else if (annotationFlushRunning) {
             stateObj = { status: 'syncing' };
         } else if (annotationSyncDebounceTimer !== null) {
             stateObj = { status: 'saving' };
@@ -73,12 +87,26 @@ export function createAnnotationsController({
     function renderAnnotations() {
         annotationGeometry.clearLayers();
         const activeDepartment = getActiveDepartment();
+        let notice = document.getElementById('annotationRevisionNotice');
+        if (!notice) {
+            notice = document.createElement('button');
+            notice.id = 'annotationRevisionNotice';
+            notice.type = 'button';
+            notice.addEventListener('click', () => {
+                if (getCueEditorUnlocked()) annotationToolbar?.dispatchEvent(new CustomEvent('review'));
+            });
+            document.body.appendChild(notice);
+        }
+        const unresolved = loadedAnnotations.filter(a => !isAnnotationVisible(a, scriptRevision, scriptPrompts)).length;
+        notice.hidden = !activeDepartment || !unresolved;
+        notice.textContent = `${unresolved} annotations need review${getCueEditorUnlocked() ? ' — Review' : ' by the department editor'}`;
         if (!activeDepartment || (!loadedAnnotations.length && !annotationDraft)) return;
 
         const byPrompt = new Map();
         const all = annotationDraft ? loadedAnnotations.concat([annotationDraft]) : loadedAnnotations;
         for (const ann of all) {
             if (!ann || !ann.prompt) continue;
+            if (!isAnnotationVisible(ann, scriptRevision, scriptPrompts)) continue;
             if (!byPrompt.has(ann.prompt)) byPrompt.set(ann.prompt, []);
             byPrompt.get(ann.prompt).push(ann);
         }
@@ -159,9 +187,15 @@ export function createAnnotationsController({
                 script !== getCurrentScriptId() || department !== getActiveDepartment()) return;
             loadedAnnotations = Array.isArray(body.annotations) ? body.annotations : [];
             annotationRevision = Number(body.revision) || 0;
-            await annotationStore.putDoc(script, department, annotationRevision, loadedAnnotations);
+            await annotationStore.putDoc(script, department, annotationRevision, loadedAnnotations, scriptRevision);
             renderAnnotations();
             requestAnimationFrame(rebuildOverviewRail);
+            if (getCueEditorUnlocked() && navigator.onLine && scriptRevision && !capturedRevisions.has(script + '|' + scriptRevision)) {
+                const sourceRevision = scriptRevision;
+                annotationServerMutation('snapshot', {sourceRevision}).then(() => {
+                    capturedRevisions.add(script + '|' + sourceRevision);
+                }).catch(() => {});
+            }
         } catch (_) {
             // Cached annotations remain visible.
         }
@@ -256,7 +290,7 @@ export function createAnnotationsController({
         if (removedCount > 0) scheduleAnnotationSync(500);
     }
 
-    async function annotationServerMutation(action, payload) {
+    async function annotationServerMutation(action, payload, sourceRevision = scriptRevision) {
         const activeDepartment = getActiveDepartment();
         const currentScriptId = getCurrentScriptId();
         const response = await fetch(annotationApiEndpoint + '?action=' + encodeURIComponent(action), {
@@ -269,6 +303,7 @@ export function createAnnotationsController({
             body: JSON.stringify({
                 script: currentScriptId,
                 department: activeDepartment,
+                ...(sourceRevision ? {sourceRevision} : {}),
                 ...payload
             })
         });
@@ -278,7 +313,11 @@ export function createAnnotationsController({
             body = JSON.parse(text);
         } catch (_) {
         }
-        if (!response.ok) throw new Error((body && body.error) || 'Annotation update failed');
+        if (!response.ok) {
+            const error = new Error((body && body.error) || 'Annotation update failed');
+            error.status = response.status;
+            throw error;
+        }
         return body || {};
     }
 
@@ -289,8 +328,10 @@ export function createAnnotationsController({
         const script = currentScriptId;
         const department = activeDepartment;
         const key = annotationCacheKey(script, department);
-        const opId = await annotationStore.addOp({key, script, department, action, payload, createdAt: Date.now()});
-        await annotationStore.putDoc(script, department, annotationRevision, loadedAnnotations);
+        payload.mutationId = makeAnnotationId();
+        const opId = await annotationStore.addOp({key, script, department, action, payload,
+            sourceRevision: scriptRevision, createdAt: Date.now()});
+        await annotationStore.putDoc(script, department, annotationRevision, loadedAnnotations, scriptRevision);
         updateAnnotationSyncLabel();
 
         if (opId === null) {
@@ -320,6 +361,12 @@ export function createAnnotationsController({
             const ann = payload.annotation;
             const idx = loadedAnnotations.findIndex(a => a && a.id === ann.id);
             const previous = idx >= 0 ? JSON.parse(JSON.stringify(loadedAnnotations[idx])) : null;
+            if (previous?.updatedAt !== undefined) payload.baseUpdatedAt = previous.updatedAt;
+            if (scriptRevision && scriptContext && !ann.sourceRevision) {
+                ann.sourceRevision = scriptRevision;
+                ann.anchorVersion = 1;
+                ann.anchor = captureAnchor(scriptContext, ann);
+            }
             if (idx >= 0) loadedAnnotations[idx] = ann;
             else loadedAnnotations.push(ann);
             if (recordUndo) {
@@ -331,6 +378,7 @@ export function createAnnotationsController({
             const idx = loadedAnnotations.findIndex(a => a && a.id === payload.id);
             if (idx >= 0) {
                 const previous = JSON.parse(JSON.stringify(loadedAnnotations[idx]));
+                if (previous.updatedAt !== undefined) payload.baseUpdatedAt = previous.updatedAt;
                 loadedAnnotations.splice(idx, 1);
                 if (recordUndo) annotationUndoStack.push({action: 'save', payload: {annotation: previous}});
             }
@@ -343,7 +391,7 @@ export function createAnnotationsController({
     async function flushAnnotationQueue() {
         const activeDepartment = getActiveDepartment();
         const currentScriptId = getCurrentScriptId();
-        if (annotationFlushRunning || !navigator.onLine || !getCueEditorUnlocked() || !activeDepartment || !currentScriptId) {
+        if (annotationReviewOpen || annotationFlushRunning || !navigator.onLine || !getCueEditorUnlocked() || !activeDepartment || !currentScriptId) {
             updateAnnotationSyncLabel();
             return;
         }
@@ -356,16 +404,34 @@ export function createAnnotationsController({
                    activeDepartment === getActiveDepartment() && currentScriptId === getCurrentScriptId()) {
                 const op = ops[0];
                 try {
-                    const body = await annotationServerMutation(op.action, op.payload);
-                    annotationRevision = Math.max(annotationRevision, Number(body.revision) || 0);
+                    // Preserve the revision on which the operation was created.
+                    // A legacy operation is deliberately sent without a revision.
+                    const body = await annotationServerMutation(op.action, op.payload, op.sourceRevision || null);
+                    const stillCurrent = currentScriptId === getCurrentScriptId() && activeDepartment === getActiveDepartment();
+                    if (stillCurrent) annotationRevision = Math.max(annotationRevision, Number(body.revision) || 0);
+                    const saved = body.annotations?.find(a => a.id === op.payload.annotation?.id);
+                    const local = stillCurrent && loadedAnnotations.find(a => a.id === saved?.id);
+                    if (local && saved) local.updatedAt = saved.updatedAt;
                     await annotationStore.deleteOp(op.id);
+                    if (saved) {
+                        // Subsequent local edits to this drawing depend on this
+                        // accepted save, rather than its older server version.
+                        for (const next of await annotationStore.opsFor(key)) {
+                            if ((next.payload.annotation?.id || next.payload.id) === saved.id) {
+                                next.payload.baseUpdatedAt = saved.updatedAt;
+                                await annotationStore.replaceOp(next);
+                                break;
+                            }
+                        }
+                    }
                 } catch (e) {
+                    if (e.status === 409) syncConflict = e.message;
                     break;
                 }
                 ops = await annotationStore.opsFor(key);
             }
             if (currentScriptId === getCurrentScriptId() && activeDepartment === getActiveDepartment()) {
-                await annotationStore.putDoc(currentScriptId, activeDepartment, annotationRevision, loadedAnnotations);
+                await annotationStore.putDoc(currentScriptId, activeDepartment, annotationRevision, loadedAnnotations, scriptRevision);
             }
         } finally {
             annotationFlushRunning = false;
@@ -606,6 +672,28 @@ export function createAnnotationsController({
 
     // Annotation Toolbar event listeners
     if (annotationToolbar) {
+        annotationToolbar.addEventListener('review', async () => {
+            if (!getCueEditorUnlocked() || !scriptRevision || annotationFlushRunning || annotationReviewOpen) return;
+            stopAnnotationMode();
+            annotationReviewOpen = true;
+            const reviewRevision = scriptRevision;
+            const reviewKey = annotationCacheKey();
+            try {
+                await reviewAnnotations({
+                    index: scriptContext, revision: scriptRevision, annotations: loadedAnnotations,
+                    request: annotationServerMutation, store: annotationStore, key: annotationCacheKey(),
+                    isCurrent: () => scriptRevision === reviewRevision && annotationCacheKey() === reviewKey,
+                });
+                annotationReviewOpen = false;
+                if (reviewRevision !== scriptRevision || reviewKey !== annotationCacheKey()) return;
+                syncConflict = '';
+                await flushAnnotationQueue();
+                if (!(await annotationStore.opsFor(reviewKey)).length) {
+                    await loadDepartmentAnnotations({preferCache: false, preserveExisting: true});
+                }
+            } catch (error) { alert(error.message); }
+            finally { annotationReviewOpen = false; }
+        });
         annotationToolbar.addEventListener('tool-change', (e) => setAnnotationTool(e.detail.tool));
         annotationToolbar.addEventListener('undo', undoAnnotationChange);
         annotationToolbar.addEventListener('done', stopAnnotationMode);
@@ -619,6 +707,7 @@ export function createAnnotationsController({
 
     // Pointer event listeners for Pen / Annotation mode
     document.addEventListener('pointerdown', (e) => {
+        if (document.querySelector('#annotationReviewDialog[open]')) return;
         const settingsDialog = document.querySelector('settings-dialog');
         if (settingsDialog?.open &&
             e.target?.closest?.('settings-dialog, #settingsPanel, #settingsBackdrop')) return;
@@ -626,7 +715,7 @@ export function createAnnotationsController({
         const inAnnotationUi = e.target?.closest?.('#annotationTools, annotation-toolbar');
 
         if (e.pointerType !== 'pen' && !inAnnotationUi) hideAutoPenPalette();
-        if (e.target?.closest?.('#annotationTools, annotation-toolbar, #toolbar')) return;
+        if (e.target?.closest?.('#annotationTools, annotation-toolbar, #toolbar, #annotationRevisionNotice')) return;
 
         const activeDepartment = getActiveDepartment();
         const cueEditorUnlocked = getCueEditorUnlocked();
@@ -712,6 +801,12 @@ export function createAnnotationsController({
     }, true);
 
     return {
+        setScriptContext(html, revision) {
+            scriptContext = indexScript(html);
+            scriptPrompts = new Set(scriptContext.blocks.map(block => block.prompt));
+            scriptRevision = revision;
+            syncConflict = '';
+        },
         renderAnnotations,
         scheduleAnnotationRender,
         loadDepartmentAnnotations,

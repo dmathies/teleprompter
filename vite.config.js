@@ -30,6 +30,7 @@ function copyDeploymentAssetsPlugin() {
           dest: resolve(distDir, 'scripts'),
           filter: (sourcePath) => {
             const rel = relative(rootDir, sourcePath).replace(/\\/g, '/');
+            if (rel === 'scripts/teleprompter_state/script_revisions' || rel.startsWith('scripts/teleprompter_state/script_revisions/')) return false;
             // Do not copy active session JSON state files
             if (rel.startsWith('scripts/teleprompter_state/') && rel.endsWith('.json')) {
               return false;

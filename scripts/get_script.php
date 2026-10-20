@@ -3,6 +3,7 @@ header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 require_once __DIR__ . '/util/api_common.php';
+require_once __DIR__ . '/util/script_revisions.php';
 $showPassword = loadPasswords()['show'] ?? '';
 requireShowAccess($showPassword);
 
@@ -11,4 +12,7 @@ $id=$_GET['id']??'';
 if(!preg_match('/^[A-Za-z0-9_-]+$/',$id) || !isset($c[$id])){http_response_code(404);exit('Unknown script');}
 $f=$c[$id]['file'];
 if(!is_readable($f)){http_response_code(404);exit('Script unavailable');}
-readfile($f);
+$html = file_get_contents($f);
+if ($html === false) { http_response_code(500); exit('Script read failed'); }
+header('X-Script-Revision: ' . scriptRevision($html));
+echo $html;

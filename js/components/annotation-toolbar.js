@@ -102,6 +102,8 @@ export class AnnotationToolbar extends BaseControllerElement {
     if (this.syncState) {
       const { status, pendingCount = 0, online = true } = this.syncState;
       if (status === 'syncing') return 'syncing…';
+      if (status === 'conflict') return this.syncState.message || 'Review required';
+      if (status === 'review') return `${pendingCount} need review`;
       if (status === 'saving') return 'saving…';
       if (status === 'pending') {
         return online ? `${pendingCount} pending` : `offline · ${pendingCount}`;
@@ -202,6 +204,8 @@ export class AnnotationToolbar extends BaseControllerElement {
           @change=${this._onWidthChange}
         >
         <span id="annotationSyncStatus">${this._renderSyncStatus()}</span>
+        <button type="button" title="Review annotation positions and script revisions"
+          @click=${() => this.dispatchEvent(new CustomEvent('review'))}>Review</button>
         <button
           type="button"
           id="annotationDoneBtn"

@@ -37,7 +37,7 @@ export function createAnnotationStore() {
     } catch (_) { return null; }
   }
 
-  async function putDoc(script, department, revision, annotations) {
+  async function putDoc(script, department, revision, annotations, scriptRevision = null) {
     const cacheKey = key(script, department);
     if (!cacheKey) return;
     try {
@@ -45,7 +45,7 @@ export function createAnnotationStore() {
       await new Promise((resolve, reject) => {
         const tx = db.transaction('annotationDocs', 'readwrite');
         tx.objectStore('annotationDocs').put({
-          key:cacheKey, script, department, revision:Number(revision)||0,
+          key:cacheKey, script, department, revision:Number(revision)||0, scriptRevision,
           annotations:Array.isArray(annotations) ? annotations : [], savedAt:Date.now()
         });
         tx.oncomplete = resolve;
@@ -79,6 +79,16 @@ export function createAnnotationStore() {
     } catch (_) {}
   }
 
+  async function replaceOp(op) {
+    const db = await open();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('annotationOps', 'readwrite');
+      tx.objectStore('annotationOps').put(op);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   async function opsFor(cacheKey) {
     if (!cacheKey) return [];
     try {
@@ -92,5 +102,5 @@ export function createAnnotationStore() {
     } catch (_) { return []; }
   }
 
-  return {key, getDoc, putDoc, addOp, deleteOp, opsFor};
+  return {key, getDoc, putDoc, addOp, deleteOp, replaceOp, opsFor};
 }

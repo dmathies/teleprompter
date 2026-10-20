@@ -29,6 +29,9 @@ For deployment, `npm run build` compiles and bundles the client into `dist/`.
 | `js/cue-text.js` | Script text-node enumeration, cue word indexing, and live trigger-word wrapping. |
 | `js/annotation-geometry.js` | Live annotation coordinate conversion, SVG shape construction, scaling, and layer cleanup. |
 | `js/annotation-store.js` | IndexedDB access for cached annotation documents and queued offline operations. |
+| `js/annotation-anchors.js` | Pristine-fragment text indexes and annotation context capture. |
+| `js/annotation-migration.js` | Pure conservative matching and revision visibility decisions. |
+| `js/annotation-review.js` | Explicit department placement review, queued-operation recovery, and rollback controls. |
 | `js/pdf-export.js` | Browser-generated print/PDF view, including export data loading, markup decoration, pagination, and print annotation rendering. |
 | `js/departments.js` | Dynamic department helper querying the backend as source of truth for allowed departments and metadata. |
 | `js/utils.js` | Shared pure colour and health-display helpers used by the browser modules. |
@@ -59,6 +62,7 @@ The PHP endpoints are:
 | `settings_api.php` | Read central department display settings and perform authenticated updates. |
 | `util/api_common.php` | Shared utility helpers (locking, JSON serialization, auth enforcement, revision signals). |
 | `util/auth_cookie.php` | Issue and verify signed role cookies. |
+| `util/script_revisions.php` | Content hashes and authenticated immutable script snapshot storage. |
 | `testing/sse_test.php` | Diagnostic SSE test stream endpoint. |
 
 All current browser clients use synchronization room `main`.
@@ -107,6 +111,7 @@ login and are announced to open clients over SSE.
 | `scripts/teleprompter_state/annotation_revisions.json` | Ignored runtime data: annotation revision notification map. |
 | `scripts/teleprompter_state/cue_revisions.json` | Ignored runtime data: cue revision notification map. |
 | `scripts/teleprompter_state/department_settings.json` | Ignored runtime data: central revisioned annotation-margin settings by department. |
+| `scripts/teleprompter_state/script_revisions/<script>/<hash>.html` | Private immutable source snapshots retained for annotation recovery; excluded from build copies. |
 
 Annotation files belong only in the root `show-annotations/` directory. The
 application does not read annotation data from beneath `scripts/`.
