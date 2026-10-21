@@ -62,8 +62,12 @@ cue data, annotation data, or another browser's layout.
 ## Annotation margin
 
 A left or right margin is implemented as padding on each semantic prompt block.
-Only the script text is indented. Cue badges, marker lines, range lines, and
-connectors retain the full content width and may extend through the margin.
+With a nonzero margin, cue and END badges occupy that margin instead of adding
+rows inside the script. Thin leaders connect each label to its anchor. Labels
+on the same text line, including multiple cues on one word, receive separate
+non-overlapping slots and leader lanes. The final leader segments run just
+below the target words. Without a margin, cue badges retain their full-width
+row layout. Rail and range graphics continue to use their semantic anchors.
 
 Annotation X coordinates are relative to the prompt area remaining after the
 configured margin rather than to screen pixels. Existing cue/script padding is
@@ -76,6 +80,12 @@ Print/PDF export fetches these central margins with the selected department
 data. A single-department export uses that department's margin. An
 all-department export reserves the largest selected left and right margins so
 each department's annotations have space.
+
+Cue-enabled print exports also respect central margins when annotations are
+disabled. In an all-department export, cues use their department's configured
+side where available; departments without a margin use an available shared
+margin. Print labels are packed within each page and export reports an error
+if the labels cannot fit, rather than clipping or dropping them.
 
 ## Adding settings
 

@@ -27,6 +27,7 @@ For deployment, `npm run build` compiles and bundles the client into `dist/`.
 | `js/semantic-position.js` | Validation, capture, comparison, and DOM mapping of prompt-and-fraction semantic positions. |
 | `js/sync-protocol.js` | State-delivery age validation and stable motion signatures used by synchronization. |
 | `js/cue-text.js` | Script text-node enumeration, cue word indexing, and live trigger-word wrapping. |
+| `js/cue-margin-layout.js` | Shared screen/print margin badge packing and leader routing, including same-line cue collisions. |
 | `js/annotation-geometry.js` | Live annotation coordinate conversion, SVG shape construction, scaling, and layer cleanup. |
 | `js/annotation-store.js` | IndexedDB access for cached annotation documents and queued offline operations. |
 | `js/annotation-anchors.js` | Pristine-fragment text indexes and annotation context capture. |

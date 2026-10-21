@@ -2,6 +2,7 @@ import { contrastingTextColor } from "./utils.js";
 import { normalizeSemanticPosition } from "./semantic-position.js";
 import { isAnnotationVisible } from './annotation-migration.js';
 import { cueMarkerHolder, cueWordOffset, alignCueRows } from './cue-text.js';
+import {layoutMarginCues} from './cue-margin-layout.js';
 
 export function createPdfExporter(deps) {
   const { exportDialog, exportStatus, exportDepartment, exportPanel, exportBackdrop, exportCues, exportAnnotations, exportStageDirections, exportOpenBtn, ALLOWED_DEPARTMENTS, getAllowedDepartments, CUE_API_ENDPOINT, ANNOTATION_API_ENDPOINT, SETTINGS_API_ENDPOINT, SCRIPT_GET_ENDPOINT, normalizeDepartmentMargin, departmentDefaultColor, getCurrentScriptId, getActiveDepartment, getAvailableScripts } = deps;
@@ -134,6 +135,8 @@ export function createPdfExporter(deps) {
             const color = cue.color || departmentDefaultColor(doc.department);
             const badge = root.ownerDocument.createElement('div');
             badge.className = 'print-cue-marker';
+            badge.dataset.cueDepartment = doc.department;
+            badge.dataset.anchorFraction = String(cue.anchor.fraction || 0);
             badge.style.setProperty('--cue-color', color);
             badge.style.setProperty('--cue-text-color', contrastingTextColor(color));
             const strong = root.ownerDocument.createElement('strong');
@@ -145,6 +148,7 @@ export function createPdfExporter(deps) {
               badge.appendChild(desc);
             }
             const trigger = exportWrapTrigger(block, cue, doc.department);
+            if (trigger) badge.dataset.triggerWordIndex = String(cue.anchor.wordIndex);
             cueMarkerHolder(block, trigger, 'print-cue-markers').appendChild(badge);
 
             if (cue.endAnchor && cue.endAnchor.prompt) {
@@ -152,6 +156,8 @@ export function createPdfExporter(deps) {
               if (endBlock) {
                 const end = root.ownerDocument.createElement('div');
                 end.className = 'print-cue-end';
+                end.dataset.cueDepartment = doc.department;
+                end.dataset.anchorFraction = String(cue.endAnchor.fraction || 0);
                 end.style.setProperty('--cue-color', color);
                 end.textContent = 'END ' + doc.department + ' ' + (cue.number || '');
                 endBlock.appendChild(end);
@@ -182,18 +188,19 @@ export function createPdfExporter(deps) {
       }
 
       function exportApplyAnnotationMargins(root, departmentDocs, includeAnnotations) {
-        if (!includeAnnotations || !departmentDocs.length) return;
+        if (!includeAnnotations || !departmentDocs.length) return {left:0,right:0};
         let left = 0, right = 0;
         for (const doc of departmentDocs) {
           const margin = doc.margin || {side:'none', width:0};
           if (margin.side === 'left') left = Math.max(left, Number(margin.width) || 0);
           if (margin.side === 'right') right = Math.max(right, Number(margin.width) || 0);
         }
-        if (!left && !right) return;
+        if (!left && !right) return {left:0,right:0};
         for (const block of root.querySelectorAll('[data-prompt-id]')) {
           block.style.setProperty('--print-ann-left', left + '%');
           block.style.setProperty('--print-ann-right', right + '%');
         }
+        return {left,right};
       }
 
       function exportSvgElement(doc, name, attrs = {}) {
@@ -422,6 +429,21 @@ export function createPdfExporter(deps) {
             box-sizing: border-box;
           }
           .print-cue-marker strong { white-space: nowrap; }
+          .cue-margin-layout .print-cue-markers { display:contents; }
+          .cue-margin-layout .print-cue-marker,
+          .cue-margin-layout .print-cue-end {
+            position:absolute; z-index:5;
+            width:var(--cue-margin-width,1px); min-width:0;
+            margin:0; padding:var(--cue-margin-padding,1mm);
+            border-left:0; border-radius:1mm;
+            flex-direction:column; gap:.5mm; align-items:flex-start;
+            white-space:normal; overflow-wrap:anywhere; overflow:hidden;
+          }
+          .cue-margin-layout .print-cue-marker strong { white-space:normal; }
+          .cue-margin-paginating .print-cue-marker,
+          .cue-margin-paginating .print-cue-end { display:none; }
+          .cue-margin-leaders { position:absolute; overflow:visible; pointer-events:none; z-index:3; }
+          .cue-margin-leaders path { fill:none;stroke-width:1;opacity:.65;vector-effect:non-scaling-stroke; }
           .print-cue-end {
             margin: 1.5mm 0 1mm calc(0px - 14mm - var(--print-ann-left, 0%));
             padding-left: 2.5mm;
@@ -536,15 +558,31 @@ export function createPdfExporter(deps) {
 
         decorateExportCues(sourceRoot, departmentDocs, includeCues);
         exportApplyStageDirections(sourceRoot, stageMode, departmentDocs);
-        exportApplyAnnotationMargins(sourceRoot, departmentDocs, includeAnnotations);
-        alignCueRows(sourceRoot, 'print-cue-markers');
+        const margins = exportApplyAnnotationMargins(sourceRoot, departmentDocs, includeAnnotations || includeCues);
+        const marginCues = includeCues && (margins.left > 0 || margins.right > 0);
+        if (marginCues) {
+          // Keep cue rows out of flow while blocks move between print pages.
+          sourceRoot.classList.add('cue-margin-layout');
+          for (const block of sourceRoot.querySelectorAll('[data-prompt-id]')) block.classList.add('cue-margin-layout', 'cue-margin-paginating');
+        } else alignCueRows(sourceRoot, 'print-cue-markers');
         paginateExportBlocks(printDoc, sourceRoot);
         sourceRoot.remove();
 
         // Decorations that depend on final block dimensions belong after pagination.
         const printRoot=printDoc.getElementById('printRoot');
+        for (const block of printRoot.querySelectorAll('.cue-margin-paginating')) block.classList.remove('cue-margin-paginating');
         if (includeAnnotations) renderExportAnnotations(printRoot, departmentDocs);
         if (includeCues) addExportCueRangeSegments(printRoot, departmentDocs);
+        if (marginCues) {
+          for (const page of printRoot.querySelectorAll('.print-page-body')) {
+            layoutMarginCues(page, {left:page.clientWidth*margins.left/100,
+              right:page.clientWidth*margins.right/100, print:true,
+              sideForBadge: badge => {
+                const margin = departmentDocs.find(doc => doc.department === badge.dataset.cueDepartment)?.margin;
+                return margin?.side === 'right' && margins.right > 0 ? 'right' : margins.left > 0 ? 'left' : 'right';
+              }});
+          }
+        }
 
         const printNow=printDoc.getElementById('printNow');
         printNow.addEventListener('click', () => printWindow.print());

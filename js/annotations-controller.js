@@ -715,7 +715,7 @@ export function createAnnotationsController({
         const inAnnotationUi = e.target?.closest?.('#annotationTools, annotation-toolbar');
 
         if (e.pointerType !== 'pen' && !inAnnotationUi) hideAutoPenPalette();
-        if (e.target?.closest?.('#annotationTools, annotation-toolbar, #toolbar, #annotationRevisionNotice')) return;
+        if (e.target?.closest?.('#annotationTools, annotation-toolbar, #toolbar, #annotationRevisionNotice, .cue-marker')) return;
 
         const activeDepartment = getActiveDepartment();
         const cueEditorUnlocked = getCueEditorUnlocked();

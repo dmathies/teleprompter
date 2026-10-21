@@ -128,6 +128,7 @@ body.overview-rail-left #viewport {
 #content {
   box-sizing: border-box;
   padding: 4px;
+  padding-bottom: calc(4px + var(--cue-margin-extra, 0px));
   font-family: $font-family-script;
   font-size: 42px;
   line-height: 1.4;
@@ -334,6 +335,34 @@ body.overview-rail-left #viewport {
   stroke-width: 2;
   opacity: .42;
   vector-effect: non-scaling-stroke;
+}
+
+#content.cue-margin-layout {
+  .cue-markers, .cue-end-marker { display: contents; }
+  .cue-marker, .cue-end-label {
+    position: absolute;
+    z-index: $z-cue-markers;
+    width: var(--cue-margin-width, 1px) !important;
+    min-width: 0;
+    margin: 0;
+    padding: var(--cue-margin-padding, 4px) !important;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    overflow: hidden;
+    .cue-number { min-width: 0; }
+  }
+  .cue-end-label { box-sizing:border-box; font-style:normal; text-indent:0; }
+}
+
+.cue-margin-leaders {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+  z-index: $z-cue-connector;
+  path { fill: none; stroke-width: 1; opacity: .65; vector-effect: non-scaling-stroke; }
 }
 
 body.cue-word-pick {

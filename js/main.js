@@ -495,6 +495,7 @@ function applyFontSize(size) {
     }
     syncEngine.preserveSemanticPositionDuringLayoutChange(() => {
         content.style.fontSize = val + "px";
+        content.style.setProperty('--cue-font-size', val * .42 + 'px');
     });
     requestAnimationFrame(() => {
         cuesManager.drawCueConnectors();

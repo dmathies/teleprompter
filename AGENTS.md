@@ -152,8 +152,10 @@ See `docs/export.md` before changing pagination or print rendering.
   browser-local preference. Annotation margin side and width are central,
   revisioned values keyed by department; changing them requires that
   department's editor login. See `docs/settings.md` before adding settings.
-- Annotation margins indent script text, not cue graphics. Existing annotations
-  move with the text-area coordinate origin when a margin changes.
+- Annotation margins indent script text. With a margin enabled, cue badges
+  occupy the margin and thin leaders point to their anchors; otherwise cue
+  badges use full-width rows. Existing annotations move with the text-area
+  coordinate origin when a margin changes.
 
 ## Performance and reliability
 

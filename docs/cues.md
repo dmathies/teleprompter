@@ -71,16 +71,29 @@ word remains highlighted with a short connector from its badge. The rail mark,
 range start, and Next cue navigation use the word's rendered position so they
 follow font-size and responsive reflow. Missing word targets retain the
 block-start badge fallback. Script prompt IDs and stored cue anchors do not
-change. Print output uses the same placement rule.
+change. Print output uses the same placement rule when no annotation margin is
+enabled.
+
+When an annotation margin is enabled, badges and END labels are positioned
+only in the margin. Their holders no longer insert rows or line breaks into
+the script. Thin leaders connect the labels to the word (or semantic paragraph
+position); colliding labels are stacked across block boundaries without
+overlap. Words on the same text line use separate short routing lanes inside
+the margin and slightly offset horizontal leaders below the words. Several
+cues may share a word. Badge numbers and descriptions wrap inside the margin;
+hovering a cue shows its full label. Left and right margins are supported, and
+resizing/font changes recompute placement without changing stored anchors.
 
 A cue with an end anchor also
 draws a full-height range line, an exact-position dashed end marker, and start
-and end marks in the overview rail. Cue graphics span configured annotation
-margins; only script text is indented.
+and end marks in the overview rail. Leader lines can cross the script area;
+the badges remain within the selected margin.
 
-For paired lyrics, a cue at the start of the whole section spans both grid
-columns. A word cue within a singer's column stays inside that column. The same
-rules apply to the single-column phone layout and print output.
+For paired lyrics without a margin, a cue at the start of the whole section
+spans both grid columns. A word cue within a singer's column stays inside that
+column in that mode. With a margin enabled, either singer's cue is placed in
+the margin and connected to the relevant word. The same rules apply to the
+single-column phone layout and print output.
 
 Cue badges use the script's cue font size and upright, unindented typography,
 independent of stage-direction styling. A cue inside a stage direction aligns

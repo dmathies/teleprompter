@@ -1,5 +1,6 @@
 import {cueWordEntries, cueMarkerHolder, cueWordOffset, alignCueRows, wrapCueTriggerWord as wrapCueTriggerWordElement} from "./cue-text.js";
 import {contrastingTextColor} from "./utils.js";
+import {cueMarginPixels, layoutMarginCues} from './cue-margin-layout.js';
 
 export function createCuesManager({
     content,
@@ -52,6 +53,8 @@ export function createCuesManager({
     }
 
     function clearCueDecorations() {
+        content.querySelector(':scope > .cue-margin-leaders')?.remove();
+        content.style.removeProperty('--cue-margin-extra');
         for (const block of content.querySelectorAll("[data-prompt-id]")) {
             block.classList.remove("prompt-with-cues");
             block.style.removeProperty("--cue-border");
@@ -76,8 +79,18 @@ export function createCuesManager({
     }
 
     function drawCueConnectors() {
-        const scriptFont = parseFloat(getComputedStyle(content).fontSize) || 42;
+        const contentStyle = getComputedStyle(content);
+        const scriptFont = parseFloat(contentStyle.fontSize) || 42;
         content.style.setProperty('--cue-font-size', scriptFont * .42 + 'px');
+        const width = content.clientWidth-(parseFloat(contentStyle.paddingLeft)||0)-(parseFloat(contentStyle.paddingRight)||0);
+        const left = cueMarginPixels(contentStyle.getPropertyValue('--annotation-margin-left'),width);
+        const right = cueMarginPixels(contentStyle.getPropertyValue('--annotation-margin-right'),width);
+        if (left > 0 || right > 0) {
+            for (const old of content.querySelectorAll('.cue-connector-layer')) old.remove();
+            layoutMarginCues(content,{left,right});
+            return;
+        }
+        layoutMarginCues(content,{left:0,right:0});
         alignCueRows(content, 'cue-markers', true);
         for (const block of content.querySelectorAll(".prompt-with-cues")) {
             const old = block.querySelector(":scope > .cue-connector-layer");
@@ -174,6 +187,8 @@ export function createCuesManager({
                 badge.style.setProperty("--cue-color", cueColorValue);
                 badge.style.setProperty("--cue-text-color", contrastingTextColor(cueColorValue));
                 badge.dataset.cueId = cue.id;
+                badge.dataset.anchorFraction = String(cue.anchor?.fraction || 0);
+                badge.title = activeDepartment + ' ' + (cue.number || '') + (cue.description ? ': ' + cue.description : '');
 
                 const number = document.createElement("span");
                 number.className = "cue-number";
@@ -196,7 +211,7 @@ export function createCuesManager({
                 }
 
                 if (cueEditorUnlocked) {
-                    badge.title = "Edit cue";
+                    badge.title += '\nEdit cue';
                     badge.addEventListener("pointerdown", (e) => {
                         e.stopPropagation();
                     });
@@ -221,6 +236,9 @@ export function createCuesManager({
             marker.style.top = endY + 'px';
             marker.dataset.cueId = cue.id || '';
             const label = document.createElement('span');
+            label.className = 'cue-end-label';
+            label.dataset.anchorPrompt = cue.endAnchor.prompt;
+            label.dataset.anchorFraction = String(cue.endAnchor.fraction || 0);
             label.textContent = 'END ' + activeDepartment + ' ' + (cue.number || '');
             marker.appendChild(label);
             content.appendChild(marker);

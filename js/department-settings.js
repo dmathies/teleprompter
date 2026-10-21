@@ -164,6 +164,9 @@ export function createDepartmentSettings({
             : 0;
 
         const apply = () => {
+            // Change cue flow within the same semantic-position preservation
+            // transaction as the text margin, before the overlay is measured.
+            content.classList.toggle('cue-margin-layout', effectiveWidth > 0);
             document.body.classList.toggle("overview-rail-left", railSide === "left");
             content.style.setProperty(
                 "--annotation-margin-left",

@@ -74,6 +74,12 @@ within long dialogue blocks. Word-cue range starts use the rendered word
 position; other range anchors retain their fractional positions. An END
 label is attached to the end block.
 
+When the selected departments reserve an annotation margin, cue/END labels use
+that margin with thin leaders instead of taking rows within the text. This
+also applies with annotations disabled. Labels are packed separately on each
+side of each page; same-line anchors retain distinct leaders. An overfull page
+margin stops export with a message rather than silently omitting cues.
+
 Annotations are re-rendered as SVG after pagination so their geometry uses the
 final print block dimensions. Strokes, pressure data, arrows, ellipses, and text
 are supported. A single department uses its central annotation margin. For an
