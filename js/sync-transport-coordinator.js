@@ -7,6 +7,7 @@
  * - 'state': Master teleprompter state (from SSE message or polling body)
  * - 'cue-revision': Map of cue revisions ({revisions: {...}})
  * - 'annotation-revision': Map of annotation revisions ({revisions: {...}})
+ * - 'script-revision': Script update notices (never applies master state)
  * - 'department-settings': Central department settings doc
  * - 'server-heartbeat': Timestamped heartbeat from server
  * - 'status': Standardized connection lifecycle & telemetry updates
@@ -179,6 +180,12 @@ export class SyncTransportCoordinator {
             this.emit("cue-revision", event);
         });
 
+        events.addEventListener("script-revision", (event) => {
+            if (events !== this.eventSource || !this.running) return;
+            this.lastHeartbeatPerf = performance.now();
+            this.emit("script-revision", event);
+        });
+
         events.addEventListener("department-settings", (event) => {
             if (events !== this.eventSource || !this.running) return;
             this.lastHeartbeatPerf = performance.now();
@@ -294,6 +301,9 @@ export class SyncTransportCoordinator {
             }
 
             // Emit revision signals if present for 100% parity with SSE
+            if (body && body.scriptRevisions) {
+                this.emit("script-revision", { data: body.scriptRevisions });
+            }
             if (body && body.cueRevisions) {
                 this.emit("cue-revision", { data: body.cueRevisions });
             }

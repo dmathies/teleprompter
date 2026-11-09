@@ -130,6 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         't1' => $clientSend,
         'cueRevisions' => $cueRevisions,
         'annotationRevisions' => $annotationRevisions,
+        'scriptRevisions' => readJsonLocked($stateDir . '/script_updates.json') ?? [],
         'departmentSettings' => $departmentSettings
     ]);
 }

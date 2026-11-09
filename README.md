@@ -35,17 +35,13 @@ the ES modules in `js/` implement the application:
    ```sh
    npm install
    ```
-2. Start the local PHP backend (in a separate terminal):
-   ```sh
-   php -S localhost:8000
-   ```
-3. Start the Vite dev server:
+2. Start the Vite dev server and php:
    ```sh
    npm run dev
    ```
    In dev mode, API requests from the Vite dev server automatically target
    `http://localhost:8000`.
-4. Build for production:
+3. Build for production:
    ```sh
    npm run build
    ```

@@ -19,3 +19,4 @@ show-annotations/*.json
 /dist/
 /css/teleprompter.css
 TODO.md
+backups/*

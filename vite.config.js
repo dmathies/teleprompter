@@ -90,11 +90,11 @@ export default defineConfig({
   server: {
     proxy: {
       '/scripts': {
-        target: 'http://localhost:4805',
+        target: 'http://localhost:8000',
         changeOrigin: true,
       },
       '/login.php': {
-        target: 'http://localhost:4805',
+        target: 'http://localhost:8000',
         changeOrigin: true,
       },
     },

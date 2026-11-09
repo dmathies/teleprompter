@@ -53,6 +53,8 @@ export function createSyncEngine({
     handleAnnotationRevisionEvent = () => {},
     handleCueRevisionEvent = () => {},
     handleDepartmentSettingsEvent = () => {},
+    handleScriptRevisionEvent = () => {},
+    onModeChange = () => {},
     getActiveDepartment = () => null,
     updateCueLockUi = () => {}
 }) {
@@ -223,6 +225,8 @@ export function createSyncEngine({
         lastServerHeartbeatPerf = performance.now();
         handleDepartmentSettingsEvent(event);
     });
+
+    transportCoordinator.on("script-revision", handleScriptRevisionEvent);
 
     transportCoordinator.on("server-heartbeat", ({data, nowPerf}) => {
         lastServerHeartbeatPerf = nowPerf;
@@ -771,6 +775,7 @@ export function createSyncEngine({
         }
 
         syncMode = mode;
+        onModeChange(mode);
         followingLive = true;
         document.body.classList.remove("follow-paused");
         followTargetScrollTop = null;
@@ -971,11 +976,11 @@ export function createSyncEngine({
         return true;
     }
 
-    function preserveSemanticPositionDuringLayoutChange(changeFn) {
+    function preserveSemanticPositionDuringLayoutChange(changeFn, savedPosition = null) {
         const semanticPosition =
-            content.querySelector("[data-prompt-id]")
+            savedPosition || (content.querySelector("[data-prompt-id]")
                 ? findSemanticPosition()
-                : null;
+                : null);
 
         changeFn();
 

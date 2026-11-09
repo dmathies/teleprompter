@@ -131,11 +131,13 @@ describe('SyncTransportCoordinator', () => {
     });
 
     const cueRevisions = [];
+    const scriptRevisions = [];
     const annotationRevisions = [];
     const deptSettings = [];
     const heartbeats = [];
 
     coordinator.on('cue-revision', (e) => cueRevisions.push(e));
+    coordinator.on('script-revision', (e) => scriptRevisions.push(e));
     coordinator.on('annotation-revision', (e) => annotationRevisions.push(e));
     coordinator.on('department-settings', (e) => deptSettings.push(e));
     coordinator.on('server-heartbeat', (e) => heartbeats.push(e));
@@ -147,6 +149,10 @@ describe('SyncTransportCoordinator', () => {
     // Cue revision
     es.simulateCustomEvent('cue-revision', { script_dept: 5 });
     assert.equal(cueRevisions.length, 1);
+
+    es.simulateCustomEvent('script-revision', { revisions: { pirates_test: { revision: 'new-hash' } } });
+    assert.equal(scriptRevisions.length, 1);
+    assert.equal(JSON.parse(scriptRevisions[0].data).revisions.pirates_test.revision, 'new-hash');
 
     // Annotation revision
     es.simulateCustomEvent('annotation-revision', { script_dept: 10 });
@@ -177,6 +183,7 @@ describe('SyncTransportCoordinator', () => {
           serverTime: 2000.5,
           state: { prompt: 'poll_prompt', fraction: 0.5 },
           cueRevisions: { test_dept: 2 },
+          scriptRevisions: { pirates_test: { revision: 'new-hash' } },
           annotationRevisions: { test_dept: 7 },
           departmentSettings: { revision: 4 },
         }),
@@ -198,7 +205,9 @@ describe('SyncTransportCoordinator', () => {
     coordinator.on('state', (st) => states.push(st));
 
     const cues = [];
+    const scripts = [];
     coordinator.on('cue-revision', (c) => cues.push(c));
+    coordinator.on('script-revision', (event) => scripts.push(event));
 
     coordinator.start();
     assert.equal(coordinator.activeMode, 'sse');
@@ -224,6 +233,7 @@ describe('SyncTransportCoordinator', () => {
     // Verify 100% parity: revisions received via polling
     assert.equal(cues.length, 1);
     assert.deepEqual(cues[0].data, { test_dept: 2 });
+    assert.deepEqual(scripts[0].data, { pirates_test: { revision: 'new-hash' } });
 
     coordinator.stop();
     assert.equal(coordinator.status, 'offline');

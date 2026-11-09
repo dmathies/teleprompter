@@ -23,6 +23,7 @@ For deployment, `npm run build` compiles and bundles the client into `dist/`.
 | `js/components/` | Modular Lit Web Components for toolbars and modal dialogs (`toolbar-transport.js`, `toolbar-display.js`, `toolbar-navigation.js`, `toolbar-sync.js`, `toolbar-sliders.js`, `annotation-toolbar.js`, `settings-dialog.js`, `export-dialog.js`, `cue-editor-dialog.js`), rendered into Light DOM with paired `.scss` styles. |
 | `js/icons.js` | FontAwesome regular and solid icons imported via `unplugin-icons` with a raw SVG compiler. |
 | `js/main.js` | Browser entry point and coordinator: script loading, display and navigation, master/follower control flow, cue and annotation workflows, settings, fullscreen, and wake lock. |
+| `js/script-editor.js`, `js/script-editor-draft.js`, `js/components/script-editor-dialog.js` | PRM script text editing, insertion drafts, safe save/reload, and explicit follower update notices. |
 | `js/dom.js` | Central lookup of teleprompter DOM elements and component custom elements consumed by `main.js`. |
 | `js/semantic-position.js` | Validation, capture, comparison, and DOM mapping of prompt-and-fraction semantic positions. |
 | `js/sync-protocol.js` | State-delivery age validation and stable motion signatures used by synchronization. |
@@ -56,6 +57,7 @@ The PHP endpoints are:
 | --- | --- |
 | `list_scripts.php` | Return readable entries from the script catalog. |
 | `get_script.php` | Return one allow-listed HTML script fragment. |
+| `script_editor_api.php` | PRM-only structured text edits and block insertion with stable IDs, revision checks, and private backups. |
 | `teleprompter_sync.php` | Claim master control, write state, and serve polling reads. |
 | `teleprompter_events.php` | Stream state, heartbeats, cue revisions, annotation revisions, and central settings over SSE. |
 | `cue_api.php` | Read and mutate department cue documents and publish revision signals. |
@@ -111,6 +113,7 @@ login and are announced to open clients over SSE.
 | `scripts/teleprompter_state/<room>.master.json` | Ignored runtime data: master owner and lease timestamps. |
 | `scripts/teleprompter_state/annotation_revisions.json` | Ignored runtime data: annotation revision notification map. |
 | `scripts/teleprompter_state/cue_revisions.json` | Ignored runtime data: cue revision notification map. |
+| `scripts/teleprompter_state/script_updates.json` | Ignored runtime data: saved script hashes for follower update notices. |
 | `scripts/teleprompter_state/department_settings.json` | Ignored runtime data: central revisioned annotation-margin settings by department. |
 | `scripts/teleprompter_state/script_revisions/<script>/<hash>.html` | Private immutable source snapshots retained for annotation recovery; excluded from build copies. |
 

@@ -727,6 +727,7 @@ export function createCuesManager({
 
     // Trigger word pick pointerdown handler
     document.addEventListener("pointerdown", (e) => {
+        if (document.querySelector('#scriptEditorModal[open]') || e.target?.closest?.('#scriptUpdateNotice')) return;
         if (document.querySelector('#annotationReviewDialog[open]')) return;
         if (!cueWordPickActive) return;
         const settingsDialog = document.querySelector("settings-dialog");

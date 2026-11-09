@@ -2,8 +2,8 @@ import http from 'node:http';
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 
-const HOST = process.env.PHP_HOST || '127.0.0.1';
-const PORT = parseInt(process.env.PHP_PORT || '4805', 10);
+const HOST = process.env.PHP_HOST || 'localhost';
+const PORT = parseInt(process.env.PHP_PORT || '8000', 10);
 const isWin = process.platform === 'win32';
 const workerCount = parseInt(process.env.PHP_CLI_SERVER_WORKERS || '5', 10);
 

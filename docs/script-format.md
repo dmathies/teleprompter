@@ -21,6 +21,46 @@ omitted by `list_scripts.php`.
 This mirrors the runtime-data policy: deployment-owned content remains on disk
 across releases without becoming public repository content.
 
+## Browser script editor
+
+In PRM master mode, **Edit script** opens a separate text editor at the current
+block and stops playback. Search by text or source page, correct the block's
+text fields, or insert a paragraph, dialogue, lyrics, stage direction, or heading
+before/after it. New lyrics retain line breaks. Existing inline markup and paired
+lyrics columns are preserved; complex blocks expose separate text fields.
+Dialogue blocks can be changed to lyrics and vice versa. The type conversion
+preserves the block's prompt ID, metadata, and inline text markup; review cues
+and annotations on changed text after saving.
+There is no raw HTML editing, moving, or deleting of existing blocks. Unsaved new
+blocks can be removed, and Cancel asks before discarding a changed draft.
+
+Save writes the catalog's script file through `scripts/script_editor_api.php`.
+It requires PRM authentication; a department login does not grant access. The
+server accepts structured text operations, escapes inserted text, retains every
+existing prompt ID, and allocates IDs above the current maximum for new blocks.
+New blocks inherit their neighbouring block's page, act, and scene context.
+Simultaneous edits use a content-hash check: a stale draft cannot overwrite a
+newer save. Failed saves retain the draft; drafts are not stored offline.
+
+Before replacing the script atomically, the server keeps immutable copies of
+both revisions under the private `scripts/teleprompter_state/script_revisions/`
+directory. These provide an administrative recovery copy, not an in-app Undo.
+The script file and its parent directory must be writable by PHP, and PHP's DOM
+extension must be enabled. Deployment must preserve edited production scripts
+and private backups.
+
+The saving browser reloads at its semantic position. Other open followers receive
+a **Script updated — Load changes** notice over SSE or polling, including after
+reconnect. They load changes explicitly, preserve their semantic position, and
+remain locally paused until Rejoin. Distribute changes to all devices before
+resuming playback into new material. Print export reads the saved version.
+
+IDs preserve block identity, not word identity or drawing geometry. Review word
+cues and fractional anchors in edited text. Annotations use the existing
+revision-review workflow; script editing never rewrites department documents or
+pending offline annotation operations. Before editing legacy scripts with
+annotations, capture the baseline with the department's Review action.
+
 ## Semantic blocks
 
 Every positionable block must have a unique, stable prompt ID:

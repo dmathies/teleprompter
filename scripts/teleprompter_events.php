@@ -55,6 +55,7 @@ $lastHeartbeatAt = 0.0;
 $lastSignature = null;
 $lastAnnotationSignature = null;
 $lastCueSignature = null;
+$lastScriptSignature = null;
 $lastDepartmentSettingsSignature = null;
 $lastEventId = $_SERVER['HTTP_LAST_EVENT_ID'] ?? '';
 
@@ -124,6 +125,17 @@ while ((microtime(true) - $startedAt) < $maxLifetimeSeconds) {
     $annotationRevisions = readStateLocked($annotationSignalFile);
     $cueRevisions = readStateLocked($cueSignalFile);
     $departmentSettings = readStateLocked($departmentSettingsFile);
+    $scriptRevisions = readStateLocked($stateDir . '/script_updates.json');
+    if ($scriptRevisions !== null) {
+        $scriptSignature = json_encode($scriptRevisions, JSON_UNESCAPED_SLASHES);
+        if ($scriptSignature !== false && $scriptSignature !== $lastScriptSignature) {
+            $lastScriptSignature = $scriptSignature;
+            echo "event: script-revision\n";
+            echo 'data: ' . json_encode(['revisions' => $scriptRevisions], JSON_UNESCAPED_SLASHES) . "\n\n";
+            flush();
+            $lastHeartbeatAt = microtime(true);
+        }
+    }
 
     if ($departmentSettings !== null) {
         $settingsSignature = json_encode($departmentSettings, JSON_UNESCAPED_SLASHES);

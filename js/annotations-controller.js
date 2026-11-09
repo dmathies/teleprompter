@@ -707,6 +707,7 @@ export function createAnnotationsController({
 
     // Pointer event listeners for Pen / Annotation mode
     document.addEventListener('pointerdown', (e) => {
+        if (document.querySelector('#scriptEditorModal[open]') || e.target?.closest?.('#scriptUpdateNotice')) return;
         if (document.querySelector('#annotationReviewDialog[open]')) return;
         const settingsDialog = document.querySelector('settings-dialog');
         if (settingsDialog?.open &&

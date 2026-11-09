@@ -21,5 +21,6 @@ export function getTeleprompterDom() {
     settingsDialog: byId("settingsDialog"),
     exportDialog: byId("exportDialog"),
     cueEditorDialog: byId("cueEditorDialog"),
+    scriptEditorDialog: byId("scriptEditorDialog"),
   };
 }

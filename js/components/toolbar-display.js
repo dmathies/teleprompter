@@ -10,6 +10,7 @@ import {
 export class ToolbarDisplay extends LitElement {
   static properties = {
     showStageDirections: { type: Boolean },
+    canEditScript: { type: Boolean },
   };
 
   createRenderRoot() {
@@ -19,6 +20,7 @@ export class ToolbarDisplay extends LitElement {
   constructor() {
     super();
     this.showStageDirections = true;
+    this.canEditScript = false;
   }
 
   _onFullscreen() {
@@ -75,6 +77,8 @@ export class ToolbarDisplay extends LitElement {
       >
         ${unsafeHTML(IconFilePdf)}
       </button>
+      ${this.canEditScript ? html`<button id="editScriptBtn" title="Edit script" aria-label="Edit script"
+        @click=${() => this.dispatchEvent(new CustomEvent('edit-script', {bubbles: true, composed: true}))}>Edit script</button>` : ''}
     `;
   }
 }

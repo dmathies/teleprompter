@@ -19,11 +19,12 @@ The settings dialog provides controls for:
 ## Storage and scope
 
 Font size, overview rail side, stage direction visibility, and the last selected
-department are browser-local preferences stored in `localStorage`:
+department and last viewed script are browser-local preferences stored in `localStorage`:
 - `gaosTeleprompterRailSide`: Overview rail side (`left` or `right`).
 - `gaosTeleprompterFontSize`: Font size in pixels (clamped between 16 and 180).
 - `gaosTeleprompterStageDirections`: Stage direction visibility (`true` or `false`).
 - `gaosTeleprompterDepartment`: Last selected department code (e.g. `FS`, `LX`). If no explicit `?dept=` query parameter is supplied in the URL, this saved selection is automatically restored. Explicit URL parameters override this and update the saved preference.
+- `gaosTeleprompterScript`: Last successfully loaded script, including scripts loaded while following the master. Startup uses an available `?script=` selection first, then this saved script, then the first catalog entry. Fresh master state can subsequently select its script as usual; stored script selection does not restore a master state or position.
 Font size applies directly to `#content` styling and preserves the semantic script position
 during adjustments and layout reflow. Keep-screen-on state uses the Screen Wake Lock API.
 

@@ -9,9 +9,11 @@ import {createOverviewRail} from "./overview-rail.js";
 import {createPdfExporter} from "./pdf-export.js";
 import {createSemanticPositionApi} from "./semantic-position.js";
 import {createSyncEngine} from "./sync-engine.js";
+import {createScriptEditor} from "./script-editor.js";
 import {createTeleprompterTransport} from "./teleprompter-transport.js";
 
 import "./components/settings-dialog.js";
+import "./components/script-editor-dialog.js";
 import "./components/export-dialog.js";
 import "./components/cue-editor-dialog.js";
 import "./components/annotation-toolbar.js";
@@ -39,6 +41,7 @@ const {
     settingsDialog,
     exportDialog,
     cueEditorDialog,
+    scriptEditorDialog,
     annotationToolbar,
     toolbarTransport,
     toolbarDisplay,
@@ -72,7 +75,16 @@ const RAIL_SIDE_STORAGE_KEY = "gaosTeleprompterRailSide";
 const FONT_SIZE_STORAGE_KEY = "gaosTeleprompterFontSize";
 const STAGE_DIRECTIONS_STORAGE_KEY = "gaosTeleprompterStageDirections";
 const DEPARTMENT_STORAGE_KEY = "gaosTeleprompterDepartment";
+const SCRIPT_STORAGE_KEY = "gaosTeleprompterScript";
 const REFERENCE_LINE_FRACTION = 0.35;
+
+function getStoredScript() {
+    try {
+        return localStorage.getItem(SCRIPT_STORAGE_KEY) || "";
+    } catch (_) {
+        return "";
+    }
+}
 
 function getStoredDepartment() {
     try {
@@ -299,6 +311,8 @@ const syncEngine = createSyncEngine({
     handleAnnotationRevisionEvent: (e) => annotationsController.handleAnnotationRevisionEvent(e),
     handleCueRevisionEvent: (e) => cuesManager.handleCueRevisionEvent(e),
     handleDepartmentSettingsEvent: (e) => departmentSettings.handleDepartmentSettingsEvent(e),
+    handleScriptRevisionEvent: (e) => scriptEditor.handleRevisionEvent(e),
+    onModeChange: (mode) => { if (toolbarDisplay) toolbarDisplay.canEditScript = mode === 'master' && !activeDepartment; },
     getActiveDepartment: () => activeDepartment,
     updateCueLockUi: () => cuesManager.updateCueLockUi()
 });
@@ -307,6 +321,19 @@ if (toolbarTransport) toolbarTransport.controller = transport;
 if (toolbarSliders) toolbarSliders.controller = transport;
 if (toolbarSync) toolbarSync.controller = syncEngine;
 if (annotationToolbar) annotationToolbar.controller = annotationsController;
+
+const scriptEditor = createScriptEditor({
+    dialog: scriptEditorDialog,
+    getScriptId: () => currentScriptId,
+    getScripts: () => availableScripts,
+    getMode: () => syncEngine.getSyncMode(),
+    getMasterKey: () => syncEngine.getMasterKey(),
+    getPosition: () => semanticPosition.capture(),
+    stopPlayback: () => { transport.setPlaying(false); transport.stopAutoScrollForManualControl(); transport.stopDragMomentum(); },
+    pauseFollowing: () => { if (syncEngine.getSyncMode() === 'follow') syncEngine.pauseFollowingForManualControl(); },
+    reloadScript: (id, position = null) => loadShowScript(id, {preservePosition: true, position}),
+    setStatus: (text, kind) => syncEngine.setSyncStatus(text, kind)
+});
 
 const {openExportPanel, closeExportPanel, startPdfExport} = createPdfExporter({
     exportDialog,
@@ -402,17 +429,22 @@ async function loadAvailableScripts() {
     }
 }
 
-async function loadShowScript(id) {
+async function loadShowScript(id, {preservePosition = false, position = null} = {}) {
     if (!availableScripts.some(s => s.id === id)) throw new Error("unknown script");
     const serial = ++scriptLoadSerial;
     const r = await fetch(SCRIPT_GET_ENDPOINT + "?id=" + encodeURIComponent(id), {cache: "no-store"});
     if (!r.ok) throw new Error("script load");
     const t = await r.text();
     if (serial !== scriptLoadSerial) return;
+    const savedPosition = preservePosition && currentScriptId === id ? (position || semanticPosition.capture()) : null;
     annotationsController.setScriptContext(t, r.headers.get('X-Script-Revision'));
     content.innerHTML = t;
     overviewRailManager.resetPositionLines();
     currentScriptId = id;
+    scriptEditor.scriptLoaded(r.headers.get('X-Script-Revision'));
+    try {
+        localStorage.setItem(SCRIPT_STORAGE_KEY, id);
+    } catch (_) {}
     if (toolbarNavigation) toolbarNavigation.currentScriptId = id;
     refreshPromptBlockCache();
     populateNavigationSelectors();
@@ -431,7 +463,9 @@ async function loadShowScript(id) {
         } catch (_) { /* cached annotations remain available */ }
     }
     applyStageDirectionVisibility();
-    transport.setScrollPos(0);
+    if (serial !== scriptLoadSerial) return;
+    if (savedPosition) syncEngine.preserveSemanticPositionDuringLayoutChange(() => {}, savedPosition);
+    else transport.setScrollPos(0);
 }
 
 function populateNavigationSelectors() {
@@ -691,6 +725,7 @@ if (toolbarNavigation) {
 }
 
 if (toolbarDisplay) {
+    toolbarDisplay.addEventListener('edit-script', () => scriptEditor.open());
     toolbarDisplay.addEventListener("toggle-fullscreen", transport.toggleFullscreen);
     toolbarDisplay.addEventListener("toggle-stage-directions", () => {
         showStageDirections = !showStageDirections;
@@ -749,8 +784,9 @@ async function initializeTeleprompter() {
         }
         await loadAvailableScripts();
         const requested = query.get("script");
+        const stored = getStoredScript();
         const first = availableScripts.length ? availableScripts[0].id : null;
-        const chosen = availableScripts.some(s => s.id === requested) ? requested : first;
+        const chosen = [requested, stored, first].find(id => availableScripts.some(s => s.id === id));
         if (!chosen) throw new Error("No scripts available");
         await loadShowScript(chosen);
         syncEngine.setSyncMode("follow");

@@ -408,7 +408,7 @@ export function createTeleprompterTransport({
 
     // Keyboard shortcuts
     document.addEventListener("keydown", (e) => {
-        if (document.querySelector('#annotationReviewDialog[open]')) return;
+        if (document.querySelector('#annotationReviewDialog[open], #scriptEditorModal[open]')) return;
         const target = e.target;
         if (
             target instanceof HTMLElement &&

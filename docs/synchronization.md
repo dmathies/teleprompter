@@ -63,6 +63,13 @@ after one hour. An SSE reconnection stops polling.
 
 ## Department data revisions
 
+PRM script saves also emit `script-revision` with script-content hashes; polling
+includes the same map as `scriptRevisions`. This only offers an explicit Load
+changes action. It does not select a script, make master state fresh, or resume
+a paused follower. Loading an update pauses following and preserves the local
+semantic position; Rejoin remains explicit. See `script-format.md` for editing
+and department-data review requirements.
+
 Successful cue and annotation mutations increment their document revision and
 update separate maps in `scripts/teleprompter_state/`. SSE emits the full map as
 `cue-revision` or `annotation-revision`. Only a client whose current script and
