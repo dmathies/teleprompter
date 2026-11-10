@@ -31,7 +31,11 @@ lyrics columns are preserved; complex blocks expose separate text fields.
 Dialogue blocks can be changed to lyrics and vice versa. The type conversion
 preserves the block's prompt ID, metadata, and inline text markup; review cues
 and annotations on changed text after saving.
-There is no raw HTML editing, moving, or deleting of existing blocks. Unsaved new
+A dialogue or lyrics block with no character/singer shows an input to add one.
+Existing blocks can be marked for deletion and restored until Save; deleted
+blocks leave their cues and annotations orphaned, so review them afterwards. The
+server recovery copy keeps the deleted text.
+There is no raw HTML editing or moving of existing blocks. Unsaved new
 blocks can be removed, and Cancel asks before discarding a changed draft.
 
 Save writes the catalog's script file through `scripts/script_editor_api.php`.

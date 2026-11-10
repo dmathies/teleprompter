@@ -81,7 +81,7 @@ test('script editor enforces PRM access, preserves anchors/markup, backs up, and
     const stale = await post({expectedRevision: model.revision, operations});
     assert.equal(stale.status, 409);
     assert.equal(fs.readFileSync(file, 'utf8'), output);
-    assert.equal((await post({expectedRevision: saved.revision, operations: [{action: 'delete', target: 'p000010'}]})).status, 400);
+    assert.equal((await post({expectedRevision: saved.revision, operations: [{action: 'remove-all', target: 'p000010'}]})).status, 400);
     assert.equal((await post({expectedRevision: saved.revision, operations: [{action: 'update', target: 'p000010', fields: {'999': 'bad'}}]})).status, 400);
     assert.equal(fs.readFileSync(file, 'utf8'), output);
     const sync = await fetch(server.baseUrl + '/scripts/teleprompter_sync.php?room=main').then(res => res.json());
@@ -100,6 +100,18 @@ test('script editor enforces PRM access, preserves anchors/markup, backs up, and
     assert.equal(reversedResponse.status, 200);
     const reversed = await fs.promises.readFile(file, 'utf8');
     assert.match(reversed, /class="cue" data-prompt-id="p000010"[^>]*><span class="character">(?:DAVE|ERIN):<\/span> <span class="dialog">Café &amp; tea<br>Second line <em>softly<\/em>\.<\/span><\/div>/);
+    fs.writeFileSync(file, reversed + '<div class="cue" data-prompt-id="p000030"><span class="dialog">No name</span></div>');
+    const nameless = await get('CHANGE-ME-MASTER').then(res => res.json());
+    assert.equal(nameless.blocks.find(block => block.id === 'p000030').speakerMissing, true);
+    const finalResponse = await post({expectedRevision: nameless.revision, operations: [
+        {action: 'set-speaker', target: 'p000030', speaker: 'FRED:'},
+        {action: 'insert', key: 'new-1', target: 'p000020', side: 'after', kind: 'paragraph', text: 'After deleted'},
+        {action: 'delete', target: 'p000020'}]});
+    assert.equal(finalResponse.status, 200);
+    const final = fs.readFileSync(file, 'utf8');
+    assert.match(final, /<span class="character">FRED:<\/span> <span class="dialog">No name<\/span>/);
+    assert.ok(!final.includes('p000020'));
+    assert.match(final, /After deleted/);
     fs.writeFileSync(file, source + '<div data-prompt-id="p000010">duplicate</div>');
     assert.equal((await get('CHANGE-ME-MASTER')).status, 500);
 });

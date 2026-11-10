@@ -86,6 +86,13 @@ export class CueEditorDialog extends LitElement {
     this.dispatchEvent(new CustomEvent('delete', { bubbles: true, composed: true }));
   }
 
+  _onFieldKeydown(e) {
+    if (e.key !== 'Enter' || e.isComposing || this.busy) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this._onSaveClick();
+  }
+
   _onSaveClick() {
     this.dispatchEvent(new CustomEvent('save', {
       detail: {
@@ -122,6 +129,7 @@ export class CueEditorDialog extends LitElement {
             placeholder="e.g. 12"
             .value=${this.cueNumber}
             @input=${this._onNumberInput}
+            @keydown=${this._onFieldKeydown}
           >
         </div>
         <div class="cue-form-row">
@@ -133,6 +141,7 @@ export class CueEditorDialog extends LitElement {
             placeholder="e.g. Pick up Chaplin"
             .value=${this.description}
             @input=${this._onDescriptionInput}
+            @keydown=${this._onFieldKeydown}
           >
         </div>
         <div class="cue-form-row">

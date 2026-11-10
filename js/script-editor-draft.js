@@ -1,9 +1,11 @@
 // The draft contains text fields, never decorated live-script markup.
 export function scriptEditorOperations(blocks, originals) {
     const operations = [];
+    const deletions = [];
     const originalById = new Map(originals.map(block => [block.id, block]));
     for (const [index, block] of blocks.entries()) {
         const original = originalById.get(block.id);
+        if (original && block.deleted) { deletions.push({action: 'delete', target: block.id}); continue; }
         if (original) {
             const fields = {};
             for (const field of block.fields) {
@@ -11,6 +13,7 @@ export function scriptEditorOperations(blocks, originals) {
             }
             if (Object.keys(fields).length) operations.push({action: 'update', target: block.id, fields});
             if (block.kind !== original.kind) operations.push({action: 'change-type', target: block.id, kind: block.kind});
+            if (block.newSpeaker?.trim()) operations.push({action: 'set-speaker', target: block.id, speaker: block.newSpeaker});
         } else {
             const before = blocks.find(item => originalById.has(item.id));
             operations.push({action: 'insert', key: block.id, kind: block.kind,
@@ -19,7 +22,7 @@ export function scriptEditorOperations(blocks, originals) {
                 text: block.fields.find(field => field.key === 'text')?.value || ''});
         }
     }
-    return operations;
+    return [...operations, ...deletions];
 }
 
 export function newScriptEditorBlock(id, kind, reference) {

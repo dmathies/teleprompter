@@ -52,6 +52,14 @@ export class ScriptEditorDialog extends LitElement {
         const blocks = [...this.blocks]; blocks.splice(index + (side === 'after' ? 1 : 0), 0, block);
         this.blocks = blocks; this.selected = block.id; this.filter = ''; this.discardConfirm = false;
     }
+    setSpeaker(value) {
+        this.blocks = this.blocks.map(block => block.id === this.selected ? {...block, newSpeaker: value} : block);
+        this.discardConfirm = false;
+    }
+    setDeleted(deleted) {
+        this.blocks = this.blocks.map(block => block.id === this.selected && !block.id.startsWith('new-') ? {...block, deleted} : block);
+        this.discardConfirm = false;
+    }
     removeNew() {
         const index = this.blocks.findIndex(block => block.id === this.selected);
         if (index < 0 || !this.selected.startsWith('new-')) return;
@@ -82,18 +90,24 @@ export class ScriptEditorDialog extends LitElement {
                 <select id="scriptEditorBlock" .value=${this.selected}
                   @change=${event => { this.selected = event.target.value; this.discardConfirm = false; }}>
                   ${filtered.map(block => html`<option value=${block.id} ?selected=${block.id === this.selected}>
-                    ${block.id.startsWith('new-') ? 'NEW' : block.id} · Page ${block.page || '—'} · ${block.fields.map(field => field.value).join(' ').slice(0, 120)}
+                    ${block.deleted ? 'DELETED · ' : ''}${block.id.startsWith('new-') ? 'NEW' : block.id} · Page ${block.page || '—'} · ${block.fields.map(field => field.value).join(' ').slice(0, 120)}
                   </option>`)}
                 </select>
               </label>
-              ${current && ['dialogue', 'lyrics'].includes(current.kind) ? html`<label>Block type
+              ${current?.deleted ? html`<p role="alert">This block will be removed when you save.
+                <button @click=${() => this.setDeleted(false)}>Restore block</button></p>` : ''}
+              ${current && !current.deleted && ['dialogue', 'lyrics'].includes(current.kind) ? html`<label>Block type
                 <select .value=${current.kind} @change=${event => this.changeKind(event.target.value)}>
                   <option value="dialogue">Dialogue</option>
                   <option value="lyrics">Lyrics</option>
                 </select>
               </label>` : ''}
+              ${current && !current.deleted && current.speakerMissing && ['dialogue', 'lyrics'].includes(current.kind) ? html`<label>
+                ${current.kind === 'lyrics' ? 'Singer (none set)' : 'Character (none set; include colon if needed)'}
+                <input type="text" .value=${current.newSpeaker || ''} @input=${event => this.setSpeaker(event.target.value)}>
+              </label>` : ''}
               <div class="script-editor-fields">
-                ${current?.fields.map(field => html`<label>${field.label}
+                ${current?.deleted ? '' : current?.fields.map(field => html`<label>${field.label}
                   <textarea rows=${/character|singer|heading/i.test(field.label) ? 2 : 5} .value=${field.value}
                     @input=${event => this.editField(field.key, event.target.value)}></textarea>
                 </label>`)}
@@ -107,8 +121,10 @@ export class ScriptEditorDialog extends LitElement {
                 </label>
                 <button @click=${() => this.insert('before')}>Insert before</button>
                 <button @click=${() => this.insert('after')}>Insert after</button>
-                ${current?.id.startsWith('new-') ? html`<button @click=${() => this.removeNew()}>Remove new block</button>` : ''}
+                ${current?.id.startsWith('new-') ? html`<button @click=${() => this.removeNew()}>Remove new block</button>`
+                  : current && !current.deleted ? html`<button @click=${() => this.setDeleted(true)}>Delete block</button>` : ''}
               </div>
+              <p class="script-editor-help">Deleting a block also orphans any cues or annotations anchored to it. Deletions can be undone until you save.</p>
             </fieldset>
             <p role="alert" class="script-editor-error">${this.error}</p>
             ${this.discardConfirm ? html`<p role="alert">Discard your unsaved changes?

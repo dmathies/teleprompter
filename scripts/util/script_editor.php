@@ -58,7 +58,9 @@ function editorModel(string $html): array {
     [, , $blocks] = editorParse($html);
     $rows = [];
     foreach ($blocks as $id => $block) {
-        $rows[] = ['id' => $id, 'kind' => editorBlockKind($block) ?? $block->getAttribute('class'),
+        $kind = editorBlockKind($block);
+        $rows[] = ['id' => $id, 'kind' => $kind ?? $block->getAttribute('class'),
+            'speakerMissing' => $kind !== null && !editorDescendantWithClass($block, $kind === 'dialogue' ? 'character' : 'lyrics-speaker'),
             'page' => $block->getAttribute('data-page'), 'act' => $block->getAttribute('data-act'),
             'scene' => $block->getAttribute('data-scene'), 'fields' => editorFields($block)];
     }
@@ -77,8 +79,7 @@ function editorDescendantWithClass(DOMElement $block, string $class): ?DOMElemen
 }
 
 function editorBlockKind(DOMElement $block): ?string {
-    if (editorHasClass($block, 'cue') &&
-        editorDescendantWithClass($block, 'character') &&
+    if (editorHasClass($block, 'cue') && !editorHasClass($block, 'act-heading') && !editorHasClass($block, 'scene-heading') &&
         editorDescendantWithClass($block, 'dialog')) return 'dialogue';
     if (editorHasClass($block, 'lyrics-block') &&
         editorDescendantWithClass($block, 'lyrics')) return 'lyrics';
@@ -161,6 +162,24 @@ function editorApply(string $html, array $operations): array {
                 editorSetText($node, $value);
                 $changed = true;
             }
+        } elseif (($op['action'] ?? '') === 'set-speaker') {
+            $kind = editorBlockKind($block);
+            $speaker = $op['speaker'] ?? null;
+            if (!$kind || !is_string($speaker) || trim($speaker) === '' || strlen($speaker) > 1000) throw new InvalidArgumentException('Invalid speaker');
+            $existing = editorDescendantWithClass($block, $kind === 'dialogue' ? 'character' : 'lyrics-speaker');
+            if (!$existing) {
+                $text = editorDescendantWithClass($block, $kind === 'dialogue' ? 'dialog' : 'lyrics');
+                $existing = $doc->createElement('span');
+                $existing->setAttribute('class', $kind === 'dialogue' ? 'character' : 'lyrics-speaker');
+                $block->insertBefore($existing, $text->parentNode === $block ? $text : $text->parentNode);
+                if ($kind === 'dialogue') $block->insertBefore($doc->createTextNode(' '), $text->parentNode === $block ? $text : $text->parentNode);
+            }
+            editorSetText($existing, $speaker);
+            $changed = true;
+        } elseif (($op['action'] ?? '') === 'delete') {
+            $block->parentNode->removeChild($block);
+            unset($blocks[$target]);
+            $changed = true;
         } elseif (($op['action'] ?? '') === 'change-type') {
             $kind = $op['kind'] ?? '';
             if (!is_string($kind)) throw new InvalidArgumentException('Invalid block type');

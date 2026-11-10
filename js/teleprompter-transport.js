@@ -406,6 +406,17 @@ export function createTeleprompterTransport({
     viewport.addEventListener("pointerup", endPointerDrag);
     viewport.addEventListener("pointercancel", endPointerDrag);
 
+    // Only a follower that has explicitly paused may be nudged; a live follower must not drift from the master.
+    function nudgePausedFollower(direction, event) {
+        if (getSyncMode() !== "follow" || !document.body.classList.contains("follow-paused")) return;
+        event.preventDefault();
+        const style = getComputedStyle(content);
+        const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4 || 30;
+        // wheelStep decays velocity by 0.9 per frame, so total travel is about ten times the initial velocity.
+        wheelVelocity += direction * lineHeight * 3 / 10;
+        startWheelAnimation();
+    }
+
     // Keyboard shortcuts
     document.addEventListener("keydown", (e) => {
         if (document.querySelector('#annotationReviewDialog[open], #scriptEditorModal[open]')) return;
@@ -436,13 +447,19 @@ export function createTeleprompterTransport({
             wheelVelocity -= 100;
             startWheelAnimation();
         } else if (e.code === "ArrowUp") {
-            if (getSyncMode() !== "master") return;
+            if (getSyncMode() !== "master") {
+                nudgePausedFollower(-1, e);
+                return;
+            }
             e.preventDefault();
             speed = Math.min(20, speed + 0.5);
             if (toolbarSliders) toolbarSliders.speed = speed;
             onStatusUpdate();
         } else if (e.code === "ArrowDown") {
-            if (getSyncMode() !== "master") return;
+            if (getSyncMode() !== "master") {
+                nudgePausedFollower(1, e);
+                return;
+            }
             e.preventDefault();
             speed = Math.max(0, speed - 0.5);
             if (toolbarSliders) toolbarSliders.speed = speed;
